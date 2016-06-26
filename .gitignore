@@ -15,11 +15,17 @@ project/plugins/project/
 # Scala-IDE specific
 .scala_dependencies
 .worksheet
+.cache-main
+.cache-tests
 
-# Eclipse stuff
+# Eclipse specific
 **/.project
 **/.settings/*
 **/.prefs
 **/.classpath
 /target/
 /bin/
+
+# IntelliJ IDEA specific
+.idea/
+*.iml
