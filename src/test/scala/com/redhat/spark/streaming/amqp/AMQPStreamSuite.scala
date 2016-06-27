@@ -16,17 +16,15 @@
 
 package com.redhat.spark.streaming.amqp
 
-import scala.concurrent.duration._
-
-import org.apache.spark.SparkConf
-import org.apache.spark.SparkFunSuite
+import org.apache.qpid.proton.amqp.messaging.{AmqpValue, Section}
+import org.apache.qpid.proton.message.Message
+import org.apache.spark.{SparkConf, SparkFunSuite}
 import org.apache.spark.storage.StorageLevel
-import org.apache.spark.streaming.Duration
-import org.apache.spark.streaming.Seconds
-import org.apache.spark.streaming.StreamingContext
+import org.apache.spark.streaming.{Duration, Seconds, StreamingContext}
 import org.scalatest.BeforeAndAfter
 import org.scalatest.concurrent.Eventually
-import org.apache.spark.SparkConf
+
+import scala.concurrent.duration._
 
 /**
  * Scala test suite for the AMQP input stream
@@ -59,10 +57,27 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
     }
   }
   
-  test("amqp receive") {
-    
+  test("AMQP receive simple body string") {
+
+    val messageConverter: Message => Option[String] = {
+
+      case message: Message => {
+
+        val body: Section = message.getBody()
+        if (body.isInstanceOf[AmqpValue]) {
+          val content: String = body.asInstanceOf[AmqpValue].getValue().asInstanceOf[String]
+          Some(content)
+        } else {
+          None
+        }
+
+      }
+      case _ =>
+        None
+    }
+
     val sendMessage = "Spark Streaming & AMQP"
-    val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, StorageLevel.MEMORY_ONLY)
+    val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, messageConverter, StorageLevel.MEMORY_ONLY)
     
     var receiveMessage: List[String] = List()
     receiveStream.foreachRDD(rdd => {

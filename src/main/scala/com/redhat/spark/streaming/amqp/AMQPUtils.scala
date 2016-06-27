@@ -16,27 +16,32 @@
 
 package com.redhat.spark.streaming.amqp
 
+import org.apache.qpid.proton.message.Message
 import org.apache.spark.streaming.dstream.ReceiverInputDStream
 import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.storage.StorageLevel
+
+import scala.reflect.ClassTag
 
 object AMQPUtils {
   
   /**
    * Create an input stream that receives messages from an AMQP sender node
-   * @param ssc						Spark Streaming context
-   * @param host					AMQP container hostname or IP address to connect
-   * @param port					AMQP container port to connect
-   * @param address				AMQP node address on which receive messages
-   * @param storageLevel	RDD storage level
+   * @param ssc						    Spark Streaming context
+   * @param host					    AMQP container hostname or IP address to connect
+   * @param port					    AMQP container port to connect
+   * @param address				    AMQP node address on which receive messages
+   * @param messageConverter  Callback for converting AMQP message to custom type at application level
+   * @param storageLevel      RDD storage level
    */
-  def createStream(
+  def createStream[T: ClassTag](
       ssc: StreamingContext,
       host: String,
       port: Int,
       address: String,
+      messageConverter: Message => Option[T],
       storageLevel: StorageLevel
-      ) : ReceiverInputDStream[String] = {
-    new AMQPInputDStream(ssc, host, port, address, storageLevel)
+      ) : ReceiverInputDStream[T] = {
+    new AMQPInputDStream(ssc, host, port, address, messageConverter, storageLevel)
   }
 }

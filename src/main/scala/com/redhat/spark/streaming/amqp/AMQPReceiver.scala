@@ -32,17 +32,19 @@ import org.apache.qpid.proton.amqp.messaging.AmqpValue
 
 /**
  * Receiver for getting messages from an AMQP sender node
- * @param host					AMQP container hostname or IP address to connect
- * @param port					AMQP container port to connect
- * @param address				AMQP node address on which receive messages
- * @param storageLevel	RDD storage level
+ * @param host					    AMQP container hostname or IP address to connect
+ * @param port					    AMQP container port to connect
+ * @param address				    AMQP node address on which receive messages
+ * @param messageConverter  Callback for converting AMQP message to custom type at application level
+ * @param storageLevel	    RDD storage level
  */
-class AMQPReceiver(
+class AMQPReceiver[T](
       host: String,
       port: Int,
       address: String,
+      messageConverter: Message => Option[T],
       storageLevel: StorageLevel
-    ) extends Receiver[String](storageLevel) {
+    ) extends Receiver[T](storageLevel) {
   
   var vertx: Vertx = _
   
@@ -51,12 +53,12 @@ class AMQPReceiver(
   var connection: ProtonConnection = _
   
   def onStart() {
-    
-    vertx = Vertx.vertx();
+
+    vertx = Vertx.vertx()
     
     val options: ProtonClientOptions = new ProtonClientOptions()
     
-    client = ProtonClient.create(vertx);
+    client = ProtonClient.create(vertx)
     
     client.connect(options, host, port, new Handler[AsyncResult[ProtonConnection]] {
       override def handle(ar: AsyncResult[ProtonConnection]): Unit = {
@@ -72,7 +74,7 @@ class AMQPReceiver(
         
       }
     })
-       
+
   }
   
   def onStop() {
@@ -83,21 +85,22 @@ class AMQPReceiver(
   
   private def processConnection(connection: ProtonConnection): Unit = {
     
-    connection.open()
+    connection
+      .closeHandler(new Handler[AsyncResult[ProtonConnection]] {
+        override def handle(ar: AsyncResult[ProtonConnection]): Unit = {
+          restart("Connection closed")
+        }
+      })
+      .open()
     
     connection
-    .createReceiver(address)
-    .handler(new ProtonMessageHandler() {
-      override def handle(delivery: ProtonDelivery, message: Message): Unit = {
-        
-        val body: Section = message.getBody();
-        if (body.isInstanceOf[AmqpValue]) {
-          val content: String = body.asInstanceOf[AmqpValue].getValue().asInstanceOf[String]
-          store(content)
+      .createReceiver(address)
+      .handler(new ProtonMessageHandler() {
+        override def handle(delivery: ProtonDelivery, message: Message): Unit = {
+          store(messageConverter(message).get)
         }
-      }
-    })
-    .open()
+      })
+      .open()
     
   }
   
