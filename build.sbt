@@ -14,11 +14,13 @@ sparkVersion in ThisBuild := "2.0.0-SNAPSHOT" // the Spark Version your package 
 
 sparkComponents in ThisBuild := Seq("streaming") // creates a dependency on spark-streaming
 
-val vertexProton = "3.2.0"
+val vertxProton = "3.2.0"
 
 libraryDependencies ++= Seq(
-  "io.vertx" % "vertx-proton" % vertexProton,
+  "io.vertx" % "vertx-proton" % vertxProton,
   "org.scalatest" %% "scalatest" % "2.2.5" % "test",
+  "org.apache.activemq" % "activemq-broker" % "5.13.3" % "test",
+  "org.apache.activemq" % "activemq-amqp" % "5.13.3" % "test",
   "org.apache.spark" %% "spark-core" % sparkVersion.value % "provided" classifier "tests"
 )
 

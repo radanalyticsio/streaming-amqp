@@ -16,29 +16,54 @@
 
 package com.redhat.spark.streaming.amqp
 
+import java.net.URI
+
 import io.vertx.core.{AsyncResult, Handler, Vertx}
 import io.vertx.proton._
+import org.apache.activemq.broker.{BrokerService, TransportConnector}
 import org.apache.qpid.proton.message.Message
 
 /**
  * Scala test utilities for the AMQP input stream
  */
 class AMQPTestUtils {
-  
+
+  private var broker: BrokerService = _
+
   val host: String = "localhost"
   val port: Int = 5672
   val address: String = "my_address"
-  
+
   var vertx: Vertx = _
   
   def setup(): Unit = {
-    
+
+    broker = new BrokerService()
+    broker.setPersistent(false)
+
+    val brokerUri: String = s"$host:$port"
+    // add AMQP connector
+    val amqpConnector: TransportConnector = new TransportConnector()
+    amqpConnector.setName("AMQP")
+    amqpConnector.setUri(new URI(s"amqp://$brokerUri"))
+    broker.addConnector(amqpConnector)
+
+    broker.start()
+    broker.waitUntilStarted()
+
     vertx = Vertx.vertx()
   }
   
   def teardown(): Unit = {
-    
-    vertx.close()
+
+    if (broker != null) {
+      broker.stop()
+      broker.waitUntilStopped()
+    }
+
+    if (vertx != null) {
+      vertx.close()
+    }
   }
   
   /**
@@ -63,7 +88,7 @@ class AMQPTestUtils {
           val message: Message = ProtonHelper.message(address, body)
           sender.send(message, new Handler[ProtonDelivery] {
             override def handle(delivery: ProtonDelivery): Unit = {
-              
+
               sender.close()
               connection.close()
             }

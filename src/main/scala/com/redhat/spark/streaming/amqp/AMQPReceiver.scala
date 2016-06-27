@@ -56,12 +56,12 @@ class AMQPReceiver[T](
       override def handle(ar: AsyncResult[ProtonConnection]): Unit = {
         
         if (ar.succeeded()) {
-      
+
           connection = ar.result()
           processConnection(connection)
           
         } else {
-          
+
         }
         
       }
@@ -76,7 +76,7 @@ class AMQPReceiver[T](
   }
   
   private def processConnection(connection: ProtonConnection): Unit = {
-    
+
     connection
       .closeHandler(new Handler[AsyncResult[ProtonConnection]] {
         override def handle(ar: AsyncResult[ProtonConnection]): Unit = {
