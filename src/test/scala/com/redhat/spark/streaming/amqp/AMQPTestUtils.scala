@@ -16,15 +16,9 @@
 
 package com.redhat.spark.streaming.amqp
 
-import io.vertx.core.AsyncResult
-import io.vertx.core.Handler
-import io.vertx.core.Vertx
-import io.vertx.proton.ProtonClient
-import io.vertx.proton.ProtonConnection
-import io.vertx.proton.ProtonDelivery
-import io.vertx.proton.ProtonSender
+import io.vertx.core.{AsyncResult, Handler, Vertx}
+import io.vertx.proton._
 import org.apache.qpid.proton.message.Message
-import io.vertx.proton.ProtonHelper
 
 /**
  * Scala test utilities for the AMQP input stream

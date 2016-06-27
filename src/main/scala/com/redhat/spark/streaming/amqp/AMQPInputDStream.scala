@@ -17,10 +17,10 @@
 package com.redhat.spark.streaming.amqp
 
 import org.apache.qpid.proton.message.Message
-import org.apache.spark.streaming.dstream.ReceiverInputDStream
-import org.apache.spark.streaming.StreamingContext
-import org.apache.spark.streaming.receiver.Receiver
 import org.apache.spark.storage.StorageLevel
+import org.apache.spark.streaming.StreamingContext
+import org.apache.spark.streaming.dstream.ReceiverInputDStream
+import org.apache.spark.streaming.receiver.Receiver
 
 import scala.reflect.ClassTag
 

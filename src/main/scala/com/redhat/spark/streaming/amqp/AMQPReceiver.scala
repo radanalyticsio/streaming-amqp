@@ -16,19 +16,11 @@
 
 package com.redhat.spark.streaming.amqp
 
+import io.vertx.core.{AsyncResult, Handler, Vertx}
+import io.vertx.proton._
+import org.apache.qpid.proton.message.Message
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.receiver.Receiver
-import io.vertx.core.AsyncResult
-import io.vertx.core.Handler
-import io.vertx.core.Vertx
-import io.vertx.proton.ProtonDelivery
-import io.vertx.proton.ProtonClient
-import io.vertx.proton.ProtonClientOptions
-import io.vertx.proton.ProtonConnection
-import io.vertx.proton.ProtonMessageHandler
-import org.apache.qpid.proton.message.Message
-import org.apache.qpid.proton.amqp.messaging.Section
-import org.apache.qpid.proton.amqp.messaging.AmqpValue
 
 /**
  * Receiver for getting messages from an AMQP sender node
