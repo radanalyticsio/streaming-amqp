@@ -1,6 +1,6 @@
 name := "dstream-amqp"
 
-organization := "com.redhat"
+organization := "org.spark-project"
 
 scalaVersion in ThisBuild := "2.11.7"
 
@@ -8,7 +8,7 @@ version := "0.0.1"
 
 // **** from the sbt-spark-package plugin ****
 
-spName := "com.redhat/dstream-amqp" // the name of your Spark Package
+spName := "org.spark-project/dstream-amqp" // the name of your Spark Package
 
 sparkVersion in ThisBuild := "2.0.0-SNAPSHOT" // the Spark Version your package depends on
 
