@@ -82,7 +82,9 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
     
     var receiveMessage: List[String] = List()
     receiveStream.foreachRDD(rdd => {
-      receiveMessage = receiveMessage ::: List(rdd.first())
+      if (!rdd.isEmpty()) {
+        receiveMessage = receiveMessage ::: List(rdd.first())
+      }
     })
     
     ssc.start()
