@@ -36,6 +36,7 @@ import scala.collection.mutable
  * @param messageConverter  Callback for converting AMQP message to custom type at application level
  * @param storageLevel	    RDD storage level
  */
+private[streaming]
 class AMQPReceiver[T](
       host: String,
       port: Int,

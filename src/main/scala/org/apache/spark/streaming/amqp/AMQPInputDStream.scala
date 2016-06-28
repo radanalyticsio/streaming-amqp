@@ -34,6 +34,7 @@ import scala.reflect.ClassTag
  * @param messageConverter  Callback for converting AMQP message to custom type at application level
  * @param storageLevel	    RDD storage level
  */
+private[streaming]
 class AMQPInputDStream[T: ClassTag](
       ssc: StreamingContext,
       host: String,

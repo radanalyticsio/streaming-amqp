@@ -54,7 +54,10 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
     
     if (ssc != null) {
       ssc.stop()
-      ssc = null
+    }
+
+    if (amqpTestUtils != null) {
+      amqpTestUtils.teardown()
     }
   }
   
