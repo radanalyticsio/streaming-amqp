@@ -18,6 +18,7 @@
 package org.apache.spark.streaming.amqp
 
 import org.apache.qpid.proton.message.Message
+import org.apache.spark.api.java.function.Function
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.api.java.{JavaReceiverInputDStream, JavaStreamingContext}
@@ -56,14 +57,19 @@ object AMQPUtils {
    * @param messageConverter  Callback for converting AMQP message to custom type at application level
    * @param storageLevel      RDD storage level
    */
-  def createStream[T: ClassTag](
+  def createStream[T](
       jssc: JavaStreamingContext,
       host: String,
       port: Int,
       address: String,
-      messageConverter: Message => Option[T],
+      messageConverter: Function[Message, Option[T]],
       storageLevel: StorageLevel
     ): JavaReceiverInputDStream[T] = {
-    new AMQPInputDStream(jssc.ssc, host, port, address, messageConverter, storageLevel)
+
+
+    def fn: (Message) => Option[T] = (x: Message) => messageConverter.call(x)
+    implicit val cmt: ClassTag[T] =
+      implicitly[ClassTag[AnyRef]].asInstanceOf[ClassTag[T]]
+    new AMQPInputDStream(jssc.ssc, host, port, address, fn, storageLevel)
   }
 }

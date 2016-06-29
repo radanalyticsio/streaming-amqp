@@ -19,6 +19,7 @@ val vertxProton = "3.2.0"
 libraryDependencies ++= Seq(
   "io.vertx" % "vertx-proton" % vertxProton,
   "org.scalatest" %% "scalatest" % "2.2.5" % "test",
+  "com.novocode" % "junit-interface" % "0.11" % "test",
   "org.apache.activemq" % "activemq-broker" % "5.13.3" % "test",
   "org.apache.activemq" % "activemq-amqp" % "5.13.3" % "test",
   "org.apache.spark" %% "spark-core" % sparkVersion.value % "provided" classifier "tests"

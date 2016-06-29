@@ -73,7 +73,7 @@ class AMQPTestUtils {
    * @param	body				AMQP body for the message to send
    */
   def sendSimpleMessage(address: String, body: String): Unit = {
-    
+
     val client: ProtonClient = ProtonClient.create(vertx)
     
     client.connect(host, port, new Handler[AsyncResult[ProtonConnection]] {
