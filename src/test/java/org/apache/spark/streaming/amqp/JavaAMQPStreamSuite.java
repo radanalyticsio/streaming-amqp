@@ -69,10 +69,16 @@ public class JavaAMQPStreamSuite {
     @Test
     public void testAMQPReceiveSimpleBodyString() {
 
+        this.amqpTestUtils.startBroker();
+
         Function f = new AMQPFunction<String>();
 
         String sendMessage = "Spark Streaming & AMQP";
-        JavaReceiverInputDStream<String>  receiveStream = AMQPUtils.createStream(this.jssc, "localhost", 5672, this.address, f, StorageLevel.MEMORY_ONLY());
+        JavaReceiverInputDStream<String>  receiveStream =
+                AMQPUtils.createStream(this.jssc,
+                        this.amqpTestUtils.address(),
+                        this.amqpTestUtils.port(),
+                        this.address, f, StorageLevel.MEMORY_ONLY());
 
         List<String> receiveMessage = new ArrayList<>();
         receiveStream.foreachRDD(rdd -> {
@@ -94,5 +100,46 @@ public class JavaAMQPStreamSuite {
         assert(receiveMessage.get(0).equals(sendMessage));
 
         jssc.stop();
+
+        this.amqpTestUtils.stopBroker();
+    }
+
+    @Test
+    public void testAMQPReceiveServer() {
+
+        String sendMessage = "Spark Streaming & AMQP";
+        int max = 10;
+
+        this.amqpTestUtils.startAMQPServer(this.address, sendMessage, max);
+
+        Function f = new AMQPFunction<String>();
+
+        JavaReceiverInputDStream<String>  receiveStream =
+                AMQPUtils.createStream(this.jssc,
+                        this.amqpTestUtils.address(),
+                        this.amqpTestUtils.port(),
+                        this.address, f, StorageLevel.MEMORY_ONLY());
+
+        List<String> receiveMessage = new ArrayList<>();
+        receiveStream.foreachRDD(rdd -> {
+            if (!rdd.isEmpty()) {
+                receiveMessage.add(rdd.first());
+            }
+        });
+
+        jssc.start();
+
+        try {
+            Thread.sleep(20000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        System.out.println(receiveMessage.size());
+        assert(receiveMessage.size() == max);
+
+        jssc.stop();
+
+        amqpTestUtils.stopAMQPServer();
     }
 }

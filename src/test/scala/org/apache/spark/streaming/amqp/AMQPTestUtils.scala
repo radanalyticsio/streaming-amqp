@@ -17,6 +17,7 @@
 
 package org.apache.spark.streaming.amqp
 
+import java.lang.Long
 import java.net.URI
 
 import io.vertx.core.{AsyncResult, Handler, Vertx}
@@ -31,13 +32,27 @@ class AMQPTestUtils {
 
   private var broker: BrokerService = _
 
+  private var server: ProtonServer = _
+
   val host: String = "localhost"
   val port: Int = 5672
   val address: String = "my_address"
 
   var vertx: Vertx = _
-  
+
   def setup(): Unit = {
+
+    vertx = Vertx.vertx()
+  }
+
+  def teardown(): Unit = {
+
+    if (vertx != null) {
+      vertx.close()
+    }
+  }
+
+  def startBroker(): Unit = {
 
     broker = new BrokerService()
     broker.setPersistent(false)
@@ -51,24 +66,21 @@ class AMQPTestUtils {
 
     broker.start()
     broker.waitUntilStarted()
-
-    vertx = Vertx.vertx()
   }
-  
-  def teardown(): Unit = {
+
+  def stopBroker(): Unit = {
 
     if (broker != null) {
       broker.stop()
       broker.waitUntilStopped()
     }
-
-    if (vertx != null) {
-      vertx.close()
-    }
   }
+
+
   
   /**
    * Send a simple message
+   *
    * @param	address			AMQP address node to which sending the message
    * @param	body				AMQP body for the message to send
    */
@@ -99,4 +111,67 @@ class AMQPTestUtils {
     })
     
   }
+
+  def startAMQPServer(address: String, body: String, max: Int): Unit = {
+
+    val options: ProtonServerOptions = new ProtonServerOptions();
+    options.setHost(host)
+    options.setPort(port)
+
+    server = ProtonServer.create(vertx, options)
+      .connectHandler(new Handler[ProtonConnection] {
+        override def handle(connection: ProtonConnection): Unit = {
+
+          connection
+            .open()
+            .sessionOpenHandler(new Handler[ProtonSession] {
+              override def handle(session: ProtonSession): Unit = {
+                session.open()
+              }
+            })
+
+
+          connection.senderOpenHandler(new Handler[ProtonSender] {
+            override def handle(sender: ProtonSender): Unit = {
+
+              sender.open()
+              var count: Int = 0
+              vertx.setPeriodic(1000, new Handler[Long] {
+                override def handle(timer: Long): Unit = {
+
+                  if (count <= max) {
+                    count = count + 1
+                    val message: Message = ProtonHelper.message(address, body)
+                    sender.send(message)
+                  } else {
+                    vertx.cancelTimer(timer)
+                  }
+
+                }
+              })
+
+            }
+          })
+
+        }
+      })
+      .listen(new Handler[AsyncResult[ProtonServer]] {
+        override def handle(ar: AsyncResult[ProtonServer]): Unit = {
+
+          if (ar.succeeded()) {
+
+          } else {
+
+          }
+        }
+      })
+  }
+
+  def stopAMQPServer(): Unit = {
+
+    if (server != null) {
+      server.close()
+    }
+  }
+
 }

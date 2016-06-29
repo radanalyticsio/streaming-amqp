@@ -60,8 +60,10 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
       amqpTestUtils.teardown()
     }
   }
-  
+
   test("AMQP receive simple body string") {
+
+    amqpTestUtils.startBroker()
 
     val messageConverter: Message => Option[String] = {
 
@@ -97,5 +99,51 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
       assert(sendMessage.equals(receiveMessage(0)))
     }
     ssc.stop()
+
+    amqpTestUtils.stopBroker()
+  }
+
+  test("AMQP receive server") {
+
+    val sendMessage = "Spark Streaming & AMQP"
+    val max = 10
+
+    amqpTestUtils.startAMQPServer(address, sendMessage, max)
+
+    val messageConverter: Message => Option[String] = {
+
+      case message: Message => {
+
+        val body: Section = message.getBody()
+        if (body.isInstanceOf[AmqpValue]) {
+          val content: String = body.asInstanceOf[AmqpValue].getValue().asInstanceOf[String]
+          Some(content)
+        } else {
+          None
+        }
+
+      }
+      case _ =>
+        None
+    }
+
+    val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, messageConverter, StorageLevel.MEMORY_ONLY)
+
+    var receiveMessage: List[String] = List()
+    receiveStream.foreachRDD(rdd => {
+      if (!rdd.isEmpty()) {
+        receiveMessage = receiveMessage ::: List(rdd.first())
+      }
+    })
+
+    ssc.start()
+
+    eventually(timeout(20000 milliseconds), interval(1000 milliseconds)) {
+
+      assert(receiveMessage.length == max)
+    }
+    ssc.stop()
+
+    amqpTestUtils.stopAMQPServer()
   }
 }
