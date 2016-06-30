@@ -136,11 +136,11 @@ class AMQPTestUtils {
 
               sender.open()
               var count: Int = 0
-              vertx.setPeriodic(1000, new Handler[Long] {
+              vertx.setPeriodic(500, new Handler[Long] {
                 override def handle(timer: Long): Unit = {
 
-                  if (count <= max) {
-                    count = count + 1
+                  if (count < max) {
+                    count += 1
                     val message: Message = ProtonHelper.message(address, body)
                     sender.send(message)
                   } else {

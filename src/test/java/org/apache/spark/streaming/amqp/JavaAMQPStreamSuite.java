@@ -76,7 +76,7 @@ public class JavaAMQPStreamSuite {
         String sendMessage = "Spark Streaming & AMQP";
         JavaReceiverInputDStream<String>  receiveStream =
                 AMQPUtils.createStream(this.jssc,
-                        this.amqpTestUtils.address(),
+                        this.amqpTestUtils.host(),
                         this.amqpTestUtils.port(),
                         this.address, f, StorageLevel.MEMORY_ONLY());
 
@@ -116,26 +116,25 @@ public class JavaAMQPStreamSuite {
 
         JavaReceiverInputDStream<String>  receiveStream =
                 AMQPUtils.createStream(this.jssc,
-                        this.amqpTestUtils.address(),
+                        this.amqpTestUtils.host(),
                         this.amqpTestUtils.port(),
                         this.address, f, StorageLevel.MEMORY_ONLY());
 
         List<String> receiveMessage = new ArrayList<>();
         receiveStream.foreachRDD(rdd -> {
             if (!rdd.isEmpty()) {
-                receiveMessage.add(rdd.first());
+                receiveMessage.addAll(rdd.collect());
             }
         });
 
         jssc.start();
 
         try {
-            Thread.sleep(20000);
+            Thread.sleep(10000);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
 
-        System.out.println(receiveMessage.size());
         assert(receiveMessage.size() == max);
 
         jssc.stop();

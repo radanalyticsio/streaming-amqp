@@ -40,7 +40,7 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
   private var conf: SparkConf = _
   private var ssc: StreamingContext = _
   private var amqpTestUtils: AMQPTestUtils = _
-  
+
   before {
     
     conf = new SparkConf().setMaster(master).setAppName(appName)
@@ -132,13 +132,14 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
     var receiveMessage: List[String] = List()
     receiveStream.foreachRDD(rdd => {
       if (!rdd.isEmpty()) {
-        receiveMessage = receiveMessage ::: List(rdd.first())
+
+        receiveMessage = receiveMessage ::: rdd.collect().toList
       }
     })
 
     ssc.start()
 
-    eventually(timeout(20000 milliseconds), interval(1000 milliseconds)) {
+    eventually(timeout(10000 milliseconds), interval(1000 milliseconds)) {
 
       assert(receiveMessage.length == max)
     }
