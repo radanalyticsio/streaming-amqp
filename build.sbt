@@ -25,5 +25,15 @@ libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion.value % "provided" classifier "tests"
 )
 
+val root = project in file(".")
+
+val examples = project in file("examples") dependsOn (root % "compile->compile") settings (
+  libraryDependencies ++= Seq(
+    // Explicitly declare them to run examples using run-main.
+    "org.apache.spark" %% "spark-core" % sparkVersion.value,
+    "org.apache.spark" %% "spark-streaming" % sparkVersion.value
+  )
+)
+
 // Remove this once Spark 2.0.0 is out
 resolvers in ThisBuild += "apache-snapshots" at "https://repository.apache.org/snapshots/"
