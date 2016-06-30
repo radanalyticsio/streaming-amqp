@@ -35,5 +35,21 @@ val examples = project in file("examples") dependsOn (root % "compile->compile")
   )
 )
 
+// avoid to include all Scala packages into the fatjar
+assemblyOption in assembly := (assemblyOption in assembly).value.copy(
+  includeScala = false
+)
+
+assemblyMergeStrategy in assembly := {
+  case PathList("META-INF", "MANIFEST.MF") => MergeStrategy.discard
+  case x if x.endsWith("io.netty.versions.properties") => MergeStrategy.first
+  case x =>
+    val oldStrategy = (assemblyMergeStrategy in assembly).value
+    oldStrategy(x)
+}
+
+// to skip the test during assembly,
+test in assembly := {}
+
 // Remove this once Spark 2.0.0 is out
 resolvers in ThisBuild += "apache-snapshots" at "https://repository.apache.org/snapshots/"
