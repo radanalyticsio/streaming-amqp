@@ -65,30 +65,13 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
 
     amqpTestUtils.startBroker()
 
-    val messageConverter: Message => Option[String] = {
-
-      case message: Message => {
-
-        val body: Section = message.getBody()
-        if (body.isInstanceOf[AmqpValue]) {
-          val content: String = body.asInstanceOf[AmqpValue].getValue().asInstanceOf[String]
-          Some(content)
-        } else {
-          None
-        }
-
-      }
-      case _ =>
-        None
-    }
-
     val sendMessage = "Spark Streaming & AMQP"
-    val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, messageConverter, StorageLevel.MEMORY_ONLY)
+    val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, messageToBodyAsString, StorageLevel.MEMORY_ONLY)
     
-    var receiveMessage: List[String] = List()
+    var receivedMessage: List[String] = List()
     receiveStream.foreachRDD(rdd => {
       if (!rdd.isEmpty()) {
-        receiveMessage = receiveMessage ::: List(rdd.first())
+        receivedMessage = receivedMessage ::: List(rdd.first())
       }
     })
     
@@ -96,7 +79,7 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
     
     eventually(timeout(10000 milliseconds), interval(1000 milliseconds)) {
       amqpTestUtils.sendSimpleMessage(address, sendMessage)
-      assert(sendMessage.equals(receiveMessage(0)))
+      assert(sendMessage.equals(receivedMessage(0)))
     }
     ssc.stop()
 
@@ -108,32 +91,14 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
     val sendMessage = "Spark Streaming & AMQP"
     val max = 10
 
-    amqpTestUtils.startAMQPServer(address, sendMessage, max)
+    amqpTestUtils.startAMQPServer(sendMessage, max)
 
-    val messageConverter: Message => Option[String] = {
+    val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, messageToBodyAsString, StorageLevel.MEMORY_ONLY)
 
-      case message: Message => {
-
-        val body: Section = message.getBody()
-        if (body.isInstanceOf[AmqpValue]) {
-          val content: String = body.asInstanceOf[AmqpValue].getValue().asInstanceOf[String]
-          Some(content)
-        } else {
-          None
-        }
-
-      }
-      case _ =>
-        None
-    }
-
-    val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, messageConverter, StorageLevel.MEMORY_ONLY)
-
-    var receiveMessage: List[String] = List()
+    var receivedMessage: List[String] = List()
     receiveStream.foreachRDD(rdd => {
       if (!rdd.isEmpty()) {
-
-        receiveMessage = receiveMessage ::: rdd.collect().toList
+        receivedMessage = receivedMessage ::: rdd.collect().toList
       }
     })
 
@@ -141,10 +106,31 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
 
     eventually(timeout(10000 milliseconds), interval(1000 milliseconds)) {
 
-      assert(receiveMessage.length == max)
+      assert(receivedMessage.length == max)
     }
     ssc.stop()
 
     amqpTestUtils.stopAMQPServer()
+  }
+
+  /**
+   * AMQP message converter from Message body into a String
+   * @return
+   */
+  private def messageToBodyAsString: Message => Option[String] = {
+
+    case message: Message => {
+
+      val body: Section = message.getBody()
+      if (body.isInstanceOf[AmqpValue]) {
+        val content: String = body.asInstanceOf[AmqpValue].getValue().asInstanceOf[String]
+        Some(content)
+      } else {
+        None
+      }
+
+    }
+    case _ =>
+      None
   }
 }

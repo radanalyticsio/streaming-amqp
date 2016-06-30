@@ -80,10 +80,10 @@ public class JavaAMQPStreamSuite {
                         this.amqpTestUtils.port(),
                         this.address, f, StorageLevel.MEMORY_ONLY());
 
-        List<String> receiveMessage = new ArrayList<>();
+        List<String> receivedMessage = new ArrayList<>();
         receiveStream.foreachRDD(rdd -> {
             if (!rdd.isEmpty()) {
-                receiveMessage.add(rdd.first());
+                receivedMessage.add(rdd.first());
             }
         });
 
@@ -97,7 +97,7 @@ public class JavaAMQPStreamSuite {
             e.printStackTrace();
         }
 
-        assert(receiveMessage.get(0).equals(sendMessage));
+        assert(receivedMessage.get(0).equals(sendMessage));
 
         jssc.stop();
 
@@ -110,7 +110,7 @@ public class JavaAMQPStreamSuite {
         String sendMessage = "Spark Streaming & AMQP";
         int max = 10;
 
-        this.amqpTestUtils.startAMQPServer(this.address, sendMessage, max);
+        this.amqpTestUtils.startAMQPServer(sendMessage, max);
 
         Function f = new AMQPFunction<String>();
 
@@ -120,10 +120,10 @@ public class JavaAMQPStreamSuite {
                         this.amqpTestUtils.port(),
                         this.address, f, StorageLevel.MEMORY_ONLY());
 
-        List<String> receiveMessage = new ArrayList<>();
+        List<String> receivedMessage = new ArrayList<>();
         receiveStream.foreachRDD(rdd -> {
             if (!rdd.isEmpty()) {
-                receiveMessage.addAll(rdd.collect());
+                receivedMessage.addAll(rdd.collect());
             }
         });
 
@@ -135,7 +135,7 @@ public class JavaAMQPStreamSuite {
             e.printStackTrace();
         }
 
-        assert(receiveMessage.size() == max);
+        assert(receivedMessage.size() == max);
 
         jssc.stop();
 

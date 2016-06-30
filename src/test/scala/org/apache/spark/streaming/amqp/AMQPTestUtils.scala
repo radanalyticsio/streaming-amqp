@@ -52,6 +52,9 @@ class AMQPTestUtils {
     }
   }
 
+  /**
+   * Start and embedded ActiveMQ broker
+   */
   def startBroker(): Unit = {
 
     broker = new BrokerService()
@@ -68,6 +71,9 @@ class AMQPTestUtils {
     broker.waitUntilStarted()
   }
 
+  /**
+   * Stop the embedded ActiveMQ broker
+   */
   def stopBroker(): Unit = {
 
     if (broker != null) {
@@ -76,8 +82,6 @@ class AMQPTestUtils {
     }
   }
 
-
-  
   /**
    * Send a simple message
    *
@@ -112,7 +116,12 @@ class AMQPTestUtils {
     
   }
 
-  def startAMQPServer(address: String, body: String, max: Int): Unit = {
+  /**
+   * Start an AMQP server which sends messages on an attached link by a receiver
+   * @param body    Body for the message to send
+   * @param max     Number of messages to send
+   */
+  def startAMQPServer(body: String, max: Int): Unit = {
 
     val options: ProtonServerOptions = new ProtonServerOptions();
     options.setHost(host)
@@ -141,7 +150,7 @@ class AMQPTestUtils {
 
                   if (count < max) {
                     count += 1
-                    val message: Message = ProtonHelper.message(address, body)
+                    val message: Message = ProtonHelper.message(body)
                     sender.send(message)
                   } else {
                     vertx.cancelTimer(timer)
@@ -167,6 +176,9 @@ class AMQPTestUtils {
       })
   }
 
+  /**
+   * Stop the AMQP server
+   */
   def stopAMQPServer(): Unit = {
 
     if (server != null) {
