@@ -1,3 +1,20 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.spark.examples.streaming.amqp
 
 import java.lang.Long
@@ -30,25 +47,21 @@ object AMQPTemperature {
 
   def main(args: Array[String]): Unit = {
 
-    def messageConverter: Message => Option[Int] = {
+    def messageConverter(message: Message): Option[Int] = {
 
-      case message => {
-        val body: Section = message.getBody()
-        if (body.isInstanceOf[AmqpValue]) {
-          val temp: Int = body.asInstanceOf[AmqpValue].getValue().asInstanceOf[Int]
-          Some(temp)
-        } else {
-          None
-        }
-      }
-      case _ =>
+      val body: Section = message.getBody()
+      if (body.isInstanceOf[AmqpValue]) {
+        val temp: Int = body.asInstanceOf[AmqpValue].getValue().asInstanceOf[Int]
+        Some(temp)
+      } else {
         None
+      }
     }
 
     val conf = new SparkConf().setMaster(master).setAppName(appName)
     val ssc = new StreamingContext(conf, batchDuration)
 
-    val receiveStream = AMQPUtils.createStream(ssc, host, port, address, messageConverter, StorageLevel.MEMORY_ONLY)
+    val receiveStream = AMQPUtils.createStream(ssc, host, port, address, messageConverter _, StorageLevel.MEMORY_ONLY)
 
     // get maximum temperature in a window
     val max = receiveStream.reduceByWindow((a,b) => if (a > b) a else b, Seconds(5), Seconds(5))

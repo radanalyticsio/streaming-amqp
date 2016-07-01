@@ -29,10 +29,11 @@ import scala.Some;
  * and provide a different type T instance as output
  * @param <T>
  */
-public class AMQPFunction<T> implements Function<Message, Option<T>> {
+public class JavaAMQPBodyFunction<T> implements Function<Message, Option<T>> {
 
     @Override
     public Option<T> call(Message message) throws Exception {
+
         Section body = message.getBody();
         if (body instanceof AmqpValue) {
             T content = (T)((AmqpValue) body).getValue();

@@ -71,14 +71,14 @@ public class JavaAMQPStreamSuite {
 
         this.amqpTestUtils.startBroker();
 
-        Function f = new AMQPFunction<String>();
+        Function converter = new JavaAMQPBodyFunction<String>();
 
         String sendMessage = "Spark Streaming & AMQP";
         JavaReceiverInputDStream<String>  receiveStream =
                 AMQPUtils.createStream(this.jssc,
                         this.amqpTestUtils.host(),
                         this.amqpTestUtils.port(),
-                        this.address, f, StorageLevel.MEMORY_ONLY());
+                        this.address, converter, StorageLevel.MEMORY_ONLY());
 
         List<String> receivedMessage = new ArrayList<>();
         receiveStream.foreachRDD(rdd -> {
@@ -112,13 +112,13 @@ public class JavaAMQPStreamSuite {
 
         this.amqpTestUtils.startAMQPServer(sendMessage, max);
 
-        Function f = new AMQPFunction<String>();
+        Function converter = new JavaAMQPBodyFunction<String>();
 
         JavaReceiverInputDStream<String>  receiveStream =
                 AMQPUtils.createStream(this.jssc,
                         this.amqpTestUtils.host(),
                         this.amqpTestUtils.port(),
-                        this.address, f, StorageLevel.MEMORY_ONLY());
+                        this.address, converter, StorageLevel.MEMORY_ONLY());
 
         List<String> receivedMessage = new ArrayList<>();
         receiveStream.foreachRDD(rdd -> {
