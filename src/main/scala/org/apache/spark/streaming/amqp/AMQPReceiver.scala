@@ -17,6 +17,8 @@
 
 package org.apache.spark.streaming.amqp
 
+import java.util.concurrent.ConcurrentHashMap
+
 import io.vertx.core.{AsyncResult, Handler, Vertx}
 import io.vertx.proton._
 import org.apache.qpid.proton.amqp.messaging.Accepted
@@ -45,19 +47,27 @@ class AMQPReceiver[T](
       storageLevel: StorageLevel
     ) extends Receiver[T](storageLevel) with Logging {
 
-  var vertx: Vertx = _
+  private var vertx: Vertx = _
   
-  var client: ProtonClient = _
+  private var client: ProtonClient = _
   
-  var connection: ProtonConnection = _
+  private var connection: ProtonConnection = _
 
-  var receiver: ProtonReceiver = _
+  private var receiver: ProtonReceiver = _
 
-  var blockGenerator: BlockGenerator = _
+  private var blockGenerator: BlockGenerator = _
+
+  private var deliveryBuffer: mutable.ArrayBuffer[ProtonDelivery] = _
+
+  private var blockDeliveryMap: ConcurrentHashMap[StreamBlockId, Array[ProtonDelivery]] = _
 
   def onStart() {
 
     logInfo("onStart")
+
+    deliveryBuffer = new mutable.ArrayBuffer[ProtonDelivery]()
+
+    blockDeliveryMap = new ConcurrentHashMap[StreamBlockId, Array[ProtonDelivery]]()
 
     blockGenerator = supervisor.createBlockGenerator(new GeneratedBlockHandler())
     blockGenerator.start()
@@ -130,10 +140,9 @@ class AMQPReceiver[T](
 
           if (blockGenerator.isActive()) {
 
-            // just make a Tuple2[Message, ProtonDelivery]
-            // NOTE : delivery is needed for settlement on pushing block
-            val amqpMessage = (message -> delivery)
-            blockGenerator.addDataWithCallback(amqpMessage, null)
+            // only AMQP message will be stored into BlockGenerator internal buffer;
+            // delivery is passed as metadata to onAddData and saved here internally
+            blockGenerator.addDataWithCallback(message, delivery)
           }
 
         }
@@ -150,33 +159,47 @@ class AMQPReceiver[T](
     def onAddData(data: Any, metadata: Any): Unit = {
 
       logDebug(data.toString())
+
+      if (metadata != null) {
+
+        // adding delivery into internal buffer
+        val delivery = metadata.asInstanceOf[ProtonDelivery]
+        deliveryBuffer += delivery
+      }
     }
 
     def onGenerateBlock(blockId: StreamBlockId): Unit = {
 
       logInfo("onGenerateBlock")
+
+      // cloning internal delivery buffer and mapping it to the generated block
+      val deliveryBufferSnapshot = deliveryBuffer.toArray
+      blockDeliveryMap.put(blockId, deliveryBufferSnapshot)
+      deliveryBuffer.clear()
     }
 
     def onPushBlock(blockId: StreamBlockId, arrayBuffer: mutable.ArrayBuffer[_]): Unit = {
 
       logInfo("onPushBlock")
 
-      // buffer contains Tuple2[Message, ProtonDelivery]
-      val amqpMessages = arrayBuffer.asInstanceOf[mutable.ArrayBuffer[(Message, ProtonDelivery)]]
+      // buffer contains AMQP Message instances
+      val messages = arrayBuffer.asInstanceOf[mutable.ArrayBuffer[Message]]
 
       try {
 
-        // storing AMQP Message instances only
-        store(amqpMessages.flatMap(x => messageConverter(x._1)))
+        // storing result conversion from AMQP Message instances
+        // by the application provided converter
+        store(messages.flatMap(x => messageConverter(x)))
 
-        amqpMessages.foreach(x => {
+        // for the deliveries related to the current generated block
+        blockDeliveryMap.get(blockId).foreach(delivery => {
 
           // for unsettled messages, send ACCEPTED delivery status
-          if (!x._2.remotelySettled()) {
-            x._2.disposition(Accepted.getInstance(), true)
+          if (!delivery.remotelySettled()) {
+            delivery.disposition(Accepted.getInstance(), true)
           }
-
         })
+
       } catch {
 
         case ex: Throwable => logError(ex.getMessage(), ex)
