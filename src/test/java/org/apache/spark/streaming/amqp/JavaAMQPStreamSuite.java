@@ -109,8 +109,9 @@ public class JavaAMQPStreamSuite {
 
         String sendMessage = "Spark Streaming & AMQP";
         int max = 10;
+        long delay = 100;
 
-        this.amqpTestUtils.startAMQPServer(sendMessage, max);
+        this.amqpTestUtils.startAMQPServer(sendMessage, max, delay);
 
         Function converter = new JavaAMQPBodyFunction<String>();
 
@@ -136,6 +137,52 @@ public class JavaAMQPStreamSuite {
         }
 
         assert(receivedMessage.size() == max);
+
+        jssc.stop();
+
+        amqpTestUtils.stopAMQPServer();
+    }
+
+    @Test
+    public void testAMQPReceiveServerThrottling() {
+
+        String sendMessage = "Spark Streaming & AMQP";
+        int max = 10;
+        long delay = 100;
+
+        long maxRate = 2;
+
+        long maxExpected = maxRate * (delay * max) /  1000;
+        long expected = (maxExpected < max) ? maxExpected : max;
+
+        this.jssc.ssc().conf().set("spark.streaming.receiver.maxRate", String.valueOf(maxRate));
+
+        this.amqpTestUtils.startAMQPServer(sendMessage, max, delay);
+
+        Function converter = new JavaAMQPBodyFunction<String>();
+
+        JavaReceiverInputDStream<String>  receiveStream =
+                AMQPUtils.createStream(this.jssc,
+                        this.amqpTestUtils.host(),
+                        this.amqpTestUtils.port(),
+                        this.address, converter, StorageLevel.MEMORY_ONLY());
+
+        List<String> receivedMessage = new ArrayList<>();
+        receiveStream.foreachRDD(rdd -> {
+            if (!rdd.isEmpty()) {
+                receivedMessage.addAll(rdd.collect());
+            }
+        });
+
+        jssc.start();
+
+        try {
+            Thread.sleep(10000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        assert(receivedMessage.size() == expected);
 
         jssc.stop();
 

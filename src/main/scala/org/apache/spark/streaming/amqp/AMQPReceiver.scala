@@ -21,7 +21,9 @@ import java.util.concurrent.ConcurrentHashMap
 
 import io.vertx.core.{AsyncResult, Handler, Vertx}
 import io.vertx.proton._
-import org.apache.qpid.proton.amqp.messaging.Accepted
+import org.apache.qpid.proton.amqp.messaging.{Accepted, Rejected}
+import org.apache.qpid.proton.amqp.transport.ErrorCondition
+import org.apache.qpid.proton.amqp.{Symbol => AmqpSymbol}
 import org.apache.qpid.proton.message.Message
 import org.apache.spark.internal.Logging
 import org.apache.spark.storage.{StorageLevel, StreamBlockId}
@@ -46,6 +48,11 @@ class AMQPReceiver[T](
       messageConverter: Message => Option[T],
       storageLevel: StorageLevel
     ) extends Receiver[T](storageLevel) with Logging {
+
+  private final val AmqpRecvError = "org.apache:amqp-recv-error"
+  private final val AmqpRecvThrottling = "Throttling : Max rate limit exceeded"
+
+  private var rateController: AMQPRateController = _
 
   private var vertx: Vertx = _
   
@@ -118,6 +125,7 @@ class AMQPReceiver[T](
 
   /**
     * Process the connection established with the AMQP source
+    *
     * @param connection     AMQP connection instance
     */
   private def processConnection(connection: ProtonConnection): Unit = {
@@ -133,22 +141,72 @@ class AMQPReceiver[T](
     receiver = connection
       .createReceiver(address)
       .setAutoAccept(false)
-
-    receiver
       .handler(new ProtonMessageHandler() {
         override def handle(delivery: ProtonDelivery, message: Message): Unit = {
 
-          if (blockGenerator.isActive()) {
-
-            // only AMQP message will be stored into BlockGenerator internal buffer;
-            // delivery is passed as metadata to onAddData and saved here internally
-            blockGenerator.addDataWithCallback(message, delivery)
-          }
-
+          rateController.acquire(delivery, message)
         }
       })
-      .open()
 
+    rateController = new AMQPPrefetchRateController(blockGenerator.getCurrentLimit)
+    rateController.init()
+
+    receiver.open()
+  }
+
+  /**
+    * AMQP rate controller implementation using "prefetch"
+    * @param maxRateLimit       Max rate for receiving messages
+    */
+  private final class AMQPPrefetchRateController(
+                         maxRateLimit: Long
+                         ) extends AMQPRateController(maxRateLimit) {
+
+    override def doInit(): Unit = {
+
+      // if MaxValue it means no max rate limit specified in the Spark configuration
+      // so the prefetch isn't explicitly set but default Vert.x Proton value is used
+      if (maxRateLimit != Long.MaxValue)
+        receiver.setPrefetch(maxRateLimit.toInt)
+
+      super.doInit()
+    }
+
+    override def doAcquire(delivery: ProtonDelivery, message: Message): Unit = {
+
+      // permit acquired, add message
+      if (blockGenerator.isActive()) {
+
+        // only AMQP message will be stored into BlockGenerator internal buffer;
+        // delivery is passed as metadata to onAddData and saved here internally
+        blockGenerator.addDataWithCallback(message, delivery)
+      }
+
+      super.doAcquire(delivery, message)
+    }
+
+    override def doThrottlingStart(delivery: ProtonDelivery, message: Message): Unit = {
+
+      logInfo("onThrottlingStart")
+      super.doThrottlingStart(delivery, message)
+    }
+
+    override def doThrottlingEnd(delivery: ProtonDelivery, message: Message): Unit = {
+
+      logInfo("onThrottlingEnd")
+      super.doThrottlingEnd(delivery, message)
+    }
+
+    override def doThrottling(delivery: ProtonDelivery, message: Message): Unit = {
+
+      // during throttling (max rate limit exceeded), all messages are rejected
+      val rejected: Rejected = new Rejected()
+      val errorCondition: ErrorCondition = new ErrorCondition(AmqpSymbol.valueOf(AmqpRecvError), AmqpRecvThrottling)
+      rejected.setError(errorCondition)
+      delivery.disposition(rejected, true)
+
+      super.doThrottling(delivery, message)
+    }
   }
 
   /**

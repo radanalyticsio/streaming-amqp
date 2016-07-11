@@ -120,8 +120,9 @@ class AMQPTestUtils {
    * Start an AMQP server which sends messages on an attached link by a receiver
    * @param body    Body for the message to send
    * @param max     Number of messages to send
+   * @param delay   Delay between two consecutive messages to send
    */
-  def startAMQPServer(body: String, max: Int): Unit = {
+  def startAMQPServer(body: String, max: Int, delay: Long): Unit = {
 
     val options: ProtonServerOptions = new ProtonServerOptions();
     options.setHost(host)
@@ -145,7 +146,7 @@ class AMQPTestUtils {
 
               sender.open()
               var count: Int = 0
-              vertx.setPeriodic(500, new Handler[Long] {
+              vertx.setPeriodic(delay, new Handler[Long] {
                 override def handle(timer: Long): Unit = {
 
                   if (count < max) {

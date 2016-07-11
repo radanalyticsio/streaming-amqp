@@ -92,8 +92,9 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
 
     val sendMessage = "Spark Streaming & AMQP"
     val max = 10
+    val delay = 100l
 
-    amqpTestUtils.startAMQPServer(sendMessage, max)
+    amqpTestUtils.startAMQPServer(sendMessage, max, delay)
 
     val converter = new AMQPBodyFunction[String]
 
@@ -111,6 +112,43 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
     eventually(timeout(10000 milliseconds), interval(1000 milliseconds)) {
 
       assert(receivedMessage.length == max)
+    }
+    ssc.stop()
+
+    amqpTestUtils.stopAMQPServer()
+  }
+
+  test("AMQP receive server with throttling") {
+
+    val sendMessage = "Spark Streaming & AMQP"
+    val max = 10
+    val delay = 100l
+
+    val maxRate: Long = 2
+
+    val maxExpected = maxRate * (delay * max) /  1000
+    val expected = if (maxExpected < max) maxExpected else max
+
+    ssc.conf.set("spark.streaming.receiver.maxRate", maxRate.toString)
+
+    amqpTestUtils.startAMQPServer(sendMessage, max, delay)
+
+    val converter = new AMQPBodyFunction[String]
+
+    val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, converter, StorageLevel.MEMORY_ONLY)
+
+    var receivedMessage: List[String] = List()
+    receiveStream.foreachRDD(rdd => {
+      if (!rdd.isEmpty()) {
+        receivedMessage = receivedMessage ::: rdd.collect().toList
+      }
+    })
+
+    ssc.start()
+
+    eventually(timeout(10000 milliseconds), interval(1000 milliseconds)) {
+
+      assert(receivedMessage.length == expected)
     }
     ssc.stop()
 
