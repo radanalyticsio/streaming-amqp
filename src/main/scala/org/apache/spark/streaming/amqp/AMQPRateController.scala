@@ -28,6 +28,14 @@ class AMQPRateController(
   }
 
   /**
+    * Open/start the rate controller activity
+    */
+  final def open(): Unit = {
+
+    doOpen()
+  }
+
+  /**
     * Try to acquire the permit to handle incoming message with related delivery
     * @param delivery       Delivery information
     * @param message        AMQP message received
@@ -67,6 +75,8 @@ class AMQPRateController(
   }
 
   def doInit(): Unit = { }
+
+  def doOpen(): Unit = { }
 
   def doAcquire(delivery: ProtonDelivery, message: Message): Unit = { }
 

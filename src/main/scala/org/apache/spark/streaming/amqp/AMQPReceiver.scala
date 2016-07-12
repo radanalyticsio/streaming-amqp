@@ -169,10 +169,12 @@ class AMQPReceiver[T](
     rateController.init()
 
     receiver.open()
+    rateController.open()
   }
 
   /**
     * AMQP rate controller implementation using "prefetch"
+    *
     * @param maxRateLimit       Max rate for receiving messages
     */
   private final class AMQPPrefetchRateController(
@@ -187,6 +189,11 @@ class AMQPReceiver[T](
         receiver.setPrefetch(maxRateLimit.toInt)
 
       super.doInit()
+    }
+
+    override def doOpen(): Unit = {
+
+      super.doOpen()
     }
 
     override def doAcquire(delivery: ProtonDelivery, message: Message): Unit = {
@@ -215,6 +222,90 @@ class AMQPReceiver[T](
     }
 
     override def doThrottling(delivery: ProtonDelivery, message: Message): Unit = {
+
+      // during throttling (max rate limit exceeded), all messages are rejected
+      val rejected: Rejected = new Rejected()
+      val errorCondition: ErrorCondition = new ErrorCondition(AmqpSymbol.valueOf(AmqpRecvError), AmqpRecvThrottling)
+      rejected.setError(errorCondition)
+      delivery.disposition(rejected, true)
+
+      super.doThrottling(delivery, message)
+    }
+  }
+
+  /**
+    * AMQP rate controller implementation using "manual" flow control
+    *
+    * @param maxRateLimit       Max rate for receiving messages
+    */
+  private final class AMQPManualRateController(
+                          maxRateLimit: Long
+                          ) extends AMQPRateController(maxRateLimit) {
+
+    private final val CreditsDefault = 1000
+    private final val CreditsThreshold = 0
+
+    var count = 0
+    var credits = 0
+
+    override def doInit(): Unit = {
+
+      count = 0
+      receiver.setPrefetch(0)
+
+      super.doInit()
+    }
+
+    override def doOpen(): Unit = {
+
+      // if MaxValue it means no max rate limit specified in the Spark configuration
+      if (maxRateLimit != Long.MaxValue) {
+        credits = maxRateLimit.toInt
+      } else {
+        credits = CreditsDefault
+      }
+      receiver.flow(credits)
+
+      super.doOpen()
+    }
+
+    override def doAcquire(delivery: ProtonDelivery, message: Message): Unit = {
+
+      // permit acquired, add message
+      if (blockGenerator.isActive()) {
+
+        // only AMQP message will be stored into BlockGenerator internal buffer;
+        // delivery is passed as metadata to onAddData and saved here internally
+        blockGenerator.addDataWithCallback(message, delivery)
+      }
+
+      count += 1
+      if (count >= credits - CreditsThreshold) {
+        receiver.flow(credits - CreditsThreshold)
+        count = 0
+      }
+
+      super.doAcquire(delivery, message)
+    }
+
+    override def doThrottlingStart(delivery: ProtonDelivery, message: Message): Unit = {
+
+      super.doThrottlingStart(delivery, message)
+    }
+
+    override def doThrottlingEnd(delivery: ProtonDelivery, message: Message): Unit = {
+
+      if (count >= credits - CreditsThreshold) {
+        receiver.flow(credits - CreditsThreshold)
+        count = 0
+      }
+
+      super.doThrottlingEnd(delivery, message)
+    }
+
+    override def doThrottling(delivery: ProtonDelivery, message: Message): Unit = {
+
+      count += 1
 
       // during throttling (max rate limit exceeded), all messages are rejected
       val rejected: Rejected = new Rejected()
