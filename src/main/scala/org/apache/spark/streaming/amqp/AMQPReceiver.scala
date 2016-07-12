@@ -82,7 +82,7 @@ class AMQPReceiver[T](
     vertx = Vertx.vertx()
     
     val options: ProtonClientOptions = new ProtonClientOptions()
-    
+
     client = ProtonClient.create(vertx)
     
     client.connect(options, host, port, new Handler[AsyncResult[ProtonConnection]] {
@@ -95,6 +95,7 @@ class AMQPReceiver[T](
           
         } else {
 
+          restart("Connection to AMQP address not established", ar.cause())
         }
         
       }
@@ -133,7 +134,24 @@ class AMQPReceiver[T](
     connection
       .closeHandler(new Handler[AsyncResult[ProtonConnection]] {
         override def handle(ar: AsyncResult[ProtonConnection]): Unit = {
-          restart("Connection closed")
+
+          // handling connection closed at AMQP level ("close" performative)
+          if (ar.succeeded()) {
+            val message = s"Connection closed by peer ${ar.result().getRemoteContainer}"
+            restart(message)
+          } else {
+            val message = "Connection closed by peer"
+            restart(message, ar.cause())
+          }
+
+        }
+      })
+      .disconnectHandler(new Handler[ProtonConnection] {
+        override def handle(connection: ProtonConnection): Unit = {
+
+          // handling connection closed at TCP level (disconnection)
+          val message = s"Disconnection by peer ${connection.getRemoteContainer}"
+          restart(message)
         }
       })
       .open()
