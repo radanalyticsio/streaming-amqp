@@ -51,6 +51,7 @@ class AMQPReceiver[T](
 
   private final val AmqpRecvError = "org.apache:amqp-recv-error"
   private final val AmqpRecvThrottling = "Throttling : Max rate limit exceeded"
+  private final val MaxStoreAttempts = 3
 
   private var rateController: AMQPRateController = _
 
@@ -137,11 +138,9 @@ class AMQPReceiver[T](
 
           // handling connection closed at AMQP level ("close" performative)
           if (ar.succeeded()) {
-            val message = s"Connection closed by peer ${ar.result().getRemoteContainer}"
-            restart(message)
+            restart(s"Connection closed by peer ${ar.result().getRemoteContainer}")
           } else {
-            val message = "Connection closed by peer"
-            restart(message, ar.cause())
+            restart("Connection closed by peer", ar.cause())
           }
 
         }
@@ -150,8 +149,7 @@ class AMQPReceiver[T](
         override def handle(connection: ProtonConnection): Unit = {
 
           // handling connection closed at TCP level (disconnection)
-          val message = s"Disconnection by peer ${connection.getRemoteContainer}"
-          restart(message)
+          restart(s"Disconnection by peer ${connection.getRemoteContainer}")
         }
       })
       .open()
@@ -162,6 +160,7 @@ class AMQPReceiver[T](
       .handler(new ProtonMessageHandler() {
         override def handle(delivery: ProtonDelivery, message: Message): Unit = {
 
+          // handling received message and related delivery
           rateController.acquire(delivery, message)
         }
       })
@@ -205,13 +204,13 @@ class AMQPReceiver[T](
 
     override def doThrottlingStart(delivery: ProtonDelivery, message: Message): Unit = {
 
-      logInfo("onThrottlingStart")
+      logWarning("onThrottlingStart")
       super.doThrottlingStart(delivery, message)
     }
 
     override def doThrottlingEnd(delivery: ProtonDelivery, message: Message): Unit = {
 
-      logInfo("onThrottlingEnd")
+      logWarning("onThrottlingEnd")
       super.doThrottlingEnd(delivery, message)
     }
 
@@ -246,8 +245,6 @@ class AMQPReceiver[T](
 
     def onGenerateBlock(blockId: StreamBlockId): Unit = {
 
-      logInfo("onGenerateBlock")
-
       // cloning internal delivery buffer and mapping it to the generated block
       val deliveryBufferSnapshot = deliveryBuffer.toArray
       blockDeliveryMap.put(blockId, deliveryBufferSnapshot)
@@ -256,37 +253,57 @@ class AMQPReceiver[T](
 
     def onPushBlock(blockId: StreamBlockId, arrayBuffer: mutable.ArrayBuffer[_]): Unit = {
 
-      logInfo("onPushBlock")
+      var attempt = 0
+      var stored = false
+      var exception: Exception = null
 
-      // buffer contains AMQP Message instances
-      val messages = arrayBuffer.asInstanceOf[mutable.ArrayBuffer[Message]]
+      // try more times to store messages
+      while (!stored && attempt < MaxStoreAttempts) {
 
-      try {
+        try {
 
-        // storing result conversion from AMQP Message instances
-        // by the application provided converter
-        store(messages.flatMap(x => messageConverter(x)))
+          // buffer contains AMQP Message instances
+          val messages = arrayBuffer.asInstanceOf[mutable.ArrayBuffer[Message]]
 
-        // for the deliveries related to the current generated block
-        blockDeliveryMap.get(blockId).foreach(delivery => {
+          // storing result conversion from AMQP Message instances
+          // by the application provided converter
+          store(messages.flatMap(x => messageConverter(x)))
+          stored = true
 
-          // for unsettled messages, send ACCEPTED delivery status
-          if (!delivery.remotelySettled()) {
-            delivery.disposition(Accepted.getInstance(), true)
+        } catch {
+
+          case ex: Exception => {
+
+            attempt += 1
+            exception = ex
           }
-        })
 
-      } catch {
+        }
 
-        case ex: Throwable => logError(ex.getMessage(), ex)
-      } finally {
+        if (stored) {
 
+          // for the deliveries related to the current generated block
+          blockDeliveryMap.get(blockId).foreach(delivery => {
+
+            // for unsettled messages, send ACCEPTED delivery status
+            if (!delivery.remotelySettled()) {
+              delivery.disposition(Accepted.getInstance(), true)
+            }
+          })
+
+        } else {
+
+          logError(exception.getMessage(), exception)
+          stop("Error while storing block into Spark", exception)
+        }
       }
+
 
     }
 
     def onError(message: String, throwable: Throwable): Unit = {
       logError(message, throwable)
+      reportError(message, throwable)
     }
   }
 
