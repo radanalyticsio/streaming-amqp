@@ -27,49 +27,91 @@ import org.apache.spark.streaming.dstream.ReceiverInputDStream
 import scala.reflect.ClassTag
 
 object AMQPUtils {
-  
+
   /**
-   * Create an input stream that receives messages from an AMQP sender node
-   * @param ssc						    Spark Streaming context
-   * @param host					    AMQP container hostname or IP address to connect
-   * @param port					    AMQP container port to connect
-   * @param address				    AMQP node address on which receive messages
-   * @param messageConverter  Callback for converting AMQP message to custom type at application level
-   * @param storageLevel      RDD storage level
-   */
+    * Create an input stream that receives messages from an AMQP sender node
+    *
+    * @param ssc              Spark Streaming context
+    * @param host             AMQP container hostname or IP address to connect
+    * @param port             AMQP container port to connect
+    * @param address          AMQP node address on which receive messages
+    * @param messageConverter Callback for converting AMQP message to custom type at application level
+    * @param storageLevel     RDD storage level
+    */
   def createStream[T: ClassTag](
-      ssc: StreamingContext,
-      host: String,
-      port: Int,
-      address: String,
-      messageConverter: Message => Option[T],
-      storageLevel: StorageLevel
-    ): ReceiverInputDStream[T] = {
+       ssc: StreamingContext,
+       host: String,
+       port: Int,
+       address: String,
+       messageConverter: Message => Option[T],
+       storageLevel: StorageLevel
+     ): ReceiverInputDStream[T] = {
     new AMQPInputDStream(ssc, host, port, address, messageConverter, storageLevel)
   }
 
   /**
-   * Create an input stream that receives messages from an AMQP sender node
-   * @param jssc						  Java Spark Streaming context
-   * @param host					    AMQP container hostname or IP address to connect
-   * @param port					    AMQP container port to connect
-   * @param address				    AMQP node address on which receive messages
-   * @param messageConverter  Callback for converting AMQP message to custom type at application level
-   * @param storageLevel      RDD storage level
-   */
-  def createStream[T](
-      jssc: JavaStreamingContext,
-      host: String,
-      port: Int,
-      address: String,
-      messageConverter: Function[Message, Option[T]],
-      storageLevel: StorageLevel
-    ): JavaReceiverInputDStream[T] = {
+    * Create an input stream that receives messages from an AMQP sender node
+    *
+    * @param ssc     Spark Streaming context
+    * @param host    AMQP container hostname or IP address to connect
+    * @param port    AMQP container port to connect
+    * @param address AMQP node address on which receive messages
+    * @note Default message converter try to convert the AMQP message body into the custom type T
+    */
+  def createStream[T: ClassTag](
+       ssc: StreamingContext,
+       host: String,
+       port: Int,
+       address: String
+     ): ReceiverInputDStream[T] = {
+    createStream(ssc, host, port, address, new AMQPBodyFunction[T], StorageLevel.MEMORY_ONLY)
+  }
 
+  /**
+    * Create an input stream that receives messages from an AMQP sender node
+    *
+    * @param jssc             Java Spark Streaming context
+    * @param host             AMQP container hostname or IP address to connect
+    * @param port             AMQP container port to connect
+    * @param address          AMQP node address on which receive messages
+    * @param messageConverter Callback for converting AMQP message to custom type at application level
+    * @param storageLevel     RDD storage level
+    * @note Default message converter try to convert the AMQP message body into the custom type T                              *
+    */
+  def createStream[T](
+       jssc: JavaStreamingContext,
+       host: String,
+       port: Int,
+       address: String,
+       messageConverter: Function[Message, Option[T]],
+       storageLevel: StorageLevel
+     ): JavaReceiverInputDStream[T] = {
 
     def fn: (Message) => Option[T] = (x: Message) => messageConverter.call(x)
     implicit val cmt: ClassTag[T] =
       implicitly[ClassTag[AnyRef]].asInstanceOf[ClassTag[T]]
     new AMQPInputDStream(jssc.ssc, host, port, address, fn, storageLevel)
+  }
+
+  /**
+    * Create an input stream that receives messages from an AMQP sender node
+    *
+    * @param jssc    Java Spark Streaming context
+    * @param host    AMQP container hostname or IP address to connect
+    * @param port    AMQP container port to connect
+    * @param address AMQP node address on which receive messages
+    * @note Default message converter try to convert the AMQP message body into the custom type T                              *
+    */
+  def createStream[T](
+       jssc: JavaStreamingContext,
+       host: String,
+       port: Int,
+       address: String
+     ): JavaReceiverInputDStream[T] = {
+
+    // define the default message converted
+    val messageConverter: Function[Message, Option[T]] = new JavaAMQPBodyFunction[T]
+
+    createStream(jssc, host, port, address, messageConverter, StorageLevel.MEMORY_ONLY)
   }
 }
