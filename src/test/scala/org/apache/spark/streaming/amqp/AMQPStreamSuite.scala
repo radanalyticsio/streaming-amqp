@@ -17,8 +17,6 @@
 
 package org.apache.spark.streaming.amqp
 
-import org.apache.qpid.proton.amqp.messaging.{AmqpValue, Section}
-import org.apache.qpid.proton.message.Message
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.{Duration, Seconds, StreamingContext}
 import org.apache.spark.{SparkConf, SparkFunSuite}
