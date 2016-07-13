@@ -30,10 +30,11 @@ import org.apache.spark.internal.Logging
   *
   * @param maxRateLimit       Max rate for receiving messages
   */
-class AMQPRateController(
+abstract class AMQPRateController(
       maxRateLimit: Long
       ) extends Logging {
 
+  // throttling healthy checked for 1 sec + 50%
   private final val throttlingHealthyPeriod = 1500l
 
   private lazy val rateLimiter = GuavaRateLimiter.create(maxRateLimit.toDouble)
@@ -44,13 +45,16 @@ class AMQPRateController(
   // timer used in order to raise the throttling end even when no other messages
   // arrive after the first one which caused the throttling start
   private val scheduledExecutorService: ScheduledExecutorService = Executors.newScheduledThreadPool(1)
-  private val throttlingHealthyTimer: ThrottlingHealthy = new ThrottlingHealthy()
+  private val throttlingHealthy: ThrottlingHealthy = new ThrottlingHealthy()
+
+  private var initialized: Boolean = false
 
   /**
     * Initialization method
     */
   final def init(): Unit = {
 
+    initialized = true
     doInit()
   }
 
@@ -59,7 +63,19 @@ class AMQPRateController(
     */
   final def open(): Unit = {
 
+    if (!initialized) {
+      throw new Exception("AMQP rate controller needs to be initialize first")
+    }
     doOpen()
+  }
+
+  /**
+    * Close/end the rate controller activity
+    */
+  final def close(): Unit = {
+
+    scheduledExecutorService.shutdownNow()
+    doClose()
   }
 
   /**
@@ -78,23 +94,27 @@ class AMQPRateController(
         if (throttling) {
           logInfo("Throttling ended ... ")
           throttling = false
-          doThrottlingEnd(delivery, message)
+          doThrottlingEnd()
 
+          // throttling ended thanks to acquired permits at current rate
+          // no more healthy control is needed
           scheduledExecutorService.shutdownNow()
         }
 
         doAcquire(delivery, message)
 
-        // permit not acquired, max rate exceeded
+      // permit not acquired, max rate exceeded
       } else {
 
         if (!throttling) {
           // throttling start now
           throttling = true
-          doThrottlingStart(delivery, message)
+          doThrottlingStart()
           logWarning("Throttling started ... ")
 
-          scheduledExecutorService.schedule(throttlingHealthyTimer, throttlingHealthyPeriod, MILLISECONDS)
+          // starting throttling healthy thread in order to end throttling
+          // when no more messages are received (silence from sender)
+          scheduledExecutorService.schedule(throttlingHealthy, throttlingHealthyPeriod, MILLISECONDS)
         }
 
         if (throttling) {
@@ -113,21 +133,27 @@ class AMQPRateController(
 
   def doOpen(): Unit = { }
 
+  def doClose(): Unit = { }
+
   def doAcquire(delivery: ProtonDelivery, message: Message): Unit = { }
 
-  def doThrottlingStart(delivery: ProtonDelivery, message: Message): Unit = { }
+  def doThrottlingStart(): Unit = { }
 
-  def doThrottlingEnd(delivery: ProtonDelivery, message: Message): Unit = { }
+  def doThrottlingEnd(): Unit = { }
 
   def doThrottling(delivery: ProtonDelivery, message: Message): Unit = { }
 
+  /**
+    * Return current max rate
+    * @return     Max rate
+    */
   final def getCurrentLimit: Long = {
 
     rateLimiter.getRate.toLong
   }
 
   /**
-    * Runnable class for the throttling healthy timer
+    * Runnable class for the throttling healthy checker
     */
   class ThrottlingHealthy extends Runnable {
 
@@ -139,7 +165,7 @@ class AMQPRateController(
 
           logInfo("Healthy: Throttling ended ... ")
           throttling = false
-          doThrottlingEnd(null, null)
+          doThrottlingEnd()
         }
       }
     }

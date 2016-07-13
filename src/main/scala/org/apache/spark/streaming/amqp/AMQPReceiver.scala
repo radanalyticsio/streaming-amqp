@@ -120,6 +120,10 @@ class AMQPReceiver[T](
       connection.close()
     }
 
+    if (rateController != null) {
+      rateController.close()
+    }
+
     if (vertx != null) {
       vertx.close()
     }
@@ -209,16 +213,14 @@ class AMQPReceiver[T](
       super.doAcquire(delivery, message)
     }
 
-    override def doThrottlingStart(delivery: ProtonDelivery, message: Message): Unit = {
+    override def doThrottlingStart(): Unit = {
 
-      logWarning("onThrottlingStart")
-      super.doThrottlingStart(delivery, message)
+      super.doThrottlingStart()
     }
 
-    override def doThrottlingEnd(delivery: ProtonDelivery, message: Message): Unit = {
+    override def doThrottlingEnd(): Unit = {
 
-      logWarning("onThrottlingEnd")
-      super.doThrottlingEnd(delivery, message)
+      super.doThrottlingEnd()
     }
 
     override def doThrottling(delivery: ProtonDelivery, message: Message): Unit = {
@@ -264,6 +266,7 @@ class AMQPReceiver[T](
       } else {
         credits = CreditsDefault
       }
+      // grant the first bunch of credits
       receiver.flow(credits)
 
       super.doOpen()
@@ -280,6 +283,7 @@ class AMQPReceiver[T](
       }
 
       count += 1
+      // if the credits exhaustion is near, need to grant more credits
       if (count >= credits - CreditsThreshold) {
         receiver.flow(credits - CreditsThreshold)
         count = 0
@@ -288,19 +292,20 @@ class AMQPReceiver[T](
       super.doAcquire(delivery, message)
     }
 
-    override def doThrottlingStart(delivery: ProtonDelivery, message: Message): Unit = {
+    override def doThrottlingStart(): Unit = {
 
-      super.doThrottlingStart(delivery, message)
+      super.doThrottlingStart()
     }
 
-    override def doThrottlingEnd(delivery: ProtonDelivery, message: Message): Unit = {
+    override def doThrottlingEnd(): Unit = {
 
+      // if the credits exhaustion is near, need to grant more credits
       if (count >= credits - CreditsThreshold) {
         receiver.flow(credits - CreditsThreshold)
         count = 0
       }
 
-      super.doThrottlingEnd(delivery, message)
+      super.doThrottlingEnd()
     }
 
     override def doThrottling(delivery: ProtonDelivery, message: Message): Unit = {
