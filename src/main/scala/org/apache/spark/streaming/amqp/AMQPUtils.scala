@@ -21,7 +21,7 @@ import org.apache.qpid.proton.message.Message
 import org.apache.spark.api.java.function.Function
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.StreamingContext
-import org.apache.spark.streaming.api.java.{JavaReceiverInputDStream, JavaStreamingContext}
+import org.apache.spark.streaming.api.java.{JavaDStream, JavaReceiverInputDStream, JavaStreamingContext}
 import org.apache.spark.streaming.dstream.ReceiverInputDStream
 
 import scala.reflect.ClassTag
@@ -113,5 +113,22 @@ object AMQPUtils {
     val messageConverter: Function[Message, Option[T]] = new JavaAMQPBodyFunction[T]
 
     createStream(jssc, host, port, address, messageConverter, StorageLevel.MEMORY_ONLY)
+  }
+}
+
+/**
+  * Helper class that wraps the methods in AMQPUtils into more Python-friendly class and
+  * function so that it can be easily instantiated and called from Python's AMQPUtils.
+  */
+private [amqp]
+class AMQPUtilsPythonHelper {
+
+  def createStream[T](
+       jssc: JavaStreamingContext,
+       host: String,
+       port: Int,
+       address: String
+     ): JavaDStream[T] = {
+    createStream(jssc, host, port, address)
   }
 }
