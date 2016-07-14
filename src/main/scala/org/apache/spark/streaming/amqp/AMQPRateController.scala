@@ -18,26 +18,35 @@
 package org.apache.spark.streaming.amqp
 
 import java.util.concurrent.TimeUnit._
-import java.util.concurrent.{Executors, ScheduledExecutorService}
+import java.util.concurrent.{Executors, ScheduledExecutorService, ScheduledFuture}
 
 import com.google.common.util.concurrent.{RateLimiter => GuavaRateLimiter}
-import io.vertx.proton.ProtonDelivery
+import io.vertx.proton.{ProtonDelivery, ProtonMessageHandler, ProtonReceiver}
+import org.apache.qpid.proton.amqp.{Symbol => AmqpSymbol}
+import org.apache.qpid.proton.amqp.messaging.Rejected
+import org.apache.qpid.proton.amqp.transport.ErrorCondition
 import org.apache.qpid.proton.message.Message
 import org.apache.spark.internal.Logging
+import org.apache.spark.streaming.receiver.BlockGenerator
 
 /**
   * Provides message rate control with related throttling
   *
-  * @param maxRateLimit       Max rate for receiving messages
+  * @param blockGenerator       BlockGenerator instance used for storing messages
+  * @param receiver             AMQP receiver instance
   */
 abstract class AMQPRateController(
-      maxRateLimit: Long
+       blockGenerator: BlockGenerator,
+       receiver: ProtonReceiver
       ) extends Logging {
+
+  protected final val AmqpRecvError = "org.apache:amqp-recv-error"
+  protected final val AmqpRecvThrottling = "Throttling : Max rate limit exceeded"
 
   // throttling healthy checked for 1 sec + 50%
   private final val throttlingHealthyPeriod = 1500l
 
-  private lazy val rateLimiter = GuavaRateLimiter.create(maxRateLimit.toDouble)
+  private lazy val rateLimiter = GuavaRateLimiter.create(blockGenerator.getCurrentLimit.toDouble)
 
   private val mutex: AnyRef = new Object()
 
@@ -45,28 +54,28 @@ abstract class AMQPRateController(
   // timer used in order to raise the throttling end even when no other messages
   // arrive after the first one which caused the throttling start
   private val scheduledExecutorService: ScheduledExecutorService = Executors.newScheduledThreadPool(1)
+  private var scheduledThrottlingHealthy: ScheduledFuture[_] = _
   private val throttlingHealthy: ThrottlingHealthy = new ThrottlingHealthy()
-
-  private var initialized: Boolean = false
-
-  /**
-    * Initialization method
-    */
-  final def init(): Unit = {
-
-    initialized = true
-    doInit()
-  }
 
   /**
     * Open/start the rate controller activity
     */
   final def open(): Unit = {
 
-    if (!initialized) {
-      throw new Exception("AMQP rate controller needs to be initialize first")
-    }
-    doOpen()
+    receiver
+    .setAutoAccept(false)
+    .handler(new ProtonMessageHandler() {
+      override def handle(delivery: ProtonDelivery, message: Message): Unit = {
+
+        // handling received message and related delivery
+        acquire(delivery, message)
+      }
+    })
+
+    // extension point before opening receiver
+    beforeOpen()
+
+    receiver.open()
   }
 
   /**
@@ -74,8 +83,14 @@ abstract class AMQPRateController(
     */
   final def close(): Unit = {
 
+    // extension point before closing receiver
+    beforeClose()
+
+    if (receiver != null) {
+      receiver.close()
+    }
+
     scheduledExecutorService.shutdownNow()
-    doClose()
   }
 
   /**
@@ -94,14 +109,14 @@ abstract class AMQPRateController(
         if (throttling) {
           logInfo("Throttling ended ... ")
           throttling = false
-          doThrottlingEnd()
+          onThrottlingEnded()
 
           // throttling ended thanks to acquired permits at current rate
           // no more healthy control is needed
-          scheduledExecutorService.shutdownNow()
+          scheduledThrottlingHealthy.cancel(false)
         }
 
-        doAcquire(delivery, message)
+        onAcquired(delivery, message)
 
       // permit not acquired, max rate exceeded
       } else {
@@ -109,19 +124,19 @@ abstract class AMQPRateController(
         if (!throttling) {
           // throttling start now
           throttling = true
-          doThrottlingStart()
+          onThrottlingStarted()
           logWarning("Throttling started ... ")
 
           // starting throttling healthy thread in order to end throttling
           // when no more messages are received (silence from sender)
-          scheduledExecutorService.schedule(throttlingHealthy, throttlingHealthyPeriod, MILLISECONDS)
+          scheduledThrottlingHealthy = scheduledExecutorService.schedule(throttlingHealthy, throttlingHealthyPeriod, MILLISECONDS)
         }
 
         if (throttling) {
 
           logError("Throttling ... ")
           // already in throttling
-          doThrottling(delivery, message)
+          onThrottling(delivery, message)
         }
 
       }
@@ -129,22 +144,21 @@ abstract class AMQPRateController(
 
   }
 
-  def doInit(): Unit = { }
+  def beforeOpen(): Unit = { }
 
-  def doOpen(): Unit = { }
+  def beforeClose(): Unit = { }
 
-  def doClose(): Unit = { }
+  def onAcquired(delivery: ProtonDelivery, message: Message): Unit = { }
 
-  def doAcquire(delivery: ProtonDelivery, message: Message): Unit = { }
+  def onThrottlingStarted(): Unit = { }
 
-  def doThrottlingStart(): Unit = { }
+  def onThrottlingEnded(): Unit = { }
 
-  def doThrottlingEnd(): Unit = { }
-
-  def doThrottling(delivery: ProtonDelivery, message: Message): Unit = { }
+  def onThrottling(delivery: ProtonDelivery, message: Message): Unit = { }
 
   /**
     * Return current max rate
+ *
     * @return     Max rate
     */
   final def getCurrentLimit: Long = {
@@ -165,9 +179,161 @@ abstract class AMQPRateController(
 
           logInfo("Healthy: Throttling ended ... ")
           throttling = false
-          doThrottlingEnd()
+          onThrottlingEnded()
         }
       }
     }
+  }
+}
+
+/**
+  * AMQP rate controller implementation using "prefetch"
+  *
+  * @param blockGenerator       BlockGenerator instance used for storing messages
+  * @param receiver             AMQP receiver instance
+  */
+private final class AMQPPrefetchRateController(
+                                                blockGenerator: BlockGenerator,
+                                                receiver: ProtonReceiver
+                                              ) extends AMQPRateController(blockGenerator, receiver) {
+
+  override def beforeOpen(): Unit = {
+
+    // if MaxValue it means no max rate limit specified in the Spark configuration
+    // so the prefetch isn't explicitly set but default Vert.x Proton value is used
+    if (blockGenerator.getCurrentLimit != Long.MaxValue)
+      receiver.setPrefetch(blockGenerator.getCurrentLimit.toInt)
+
+    super.beforeOpen()
+  }
+
+  override def beforeClose(): Unit = {
+
+    super.beforeClose()
+  }
+
+  override def onAcquired(delivery: ProtonDelivery, message: Message): Unit = {
+
+    // permit acquired, add message
+    if (blockGenerator.isActive()) {
+
+      // only AMQP message will be stored into BlockGenerator internal buffer;
+      // delivery is passed as metadata to onAddData and saved here internally
+      blockGenerator.addDataWithCallback(message, delivery)
+    }
+
+    super.onAcquired(delivery, message)
+  }
+
+  override def onThrottlingStarted(): Unit = {
+
+    super.onThrottlingStarted()
+  }
+
+  override def onThrottlingEnded(): Unit = {
+
+    super.onThrottlingEnded()
+  }
+
+  override def onThrottling(delivery: ProtonDelivery, message: Message): Unit = {
+
+    // during throttling (max rate limit exceeded), all messages are rejected
+    val rejected: Rejected = new Rejected()
+    val errorCondition: ErrorCondition = new ErrorCondition(AmqpSymbol.valueOf(AmqpRecvError), AmqpRecvThrottling)
+    rejected.setError(errorCondition)
+    delivery.disposition(rejected, true)
+
+    super.onThrottling(delivery, message)
+  }
+}
+
+/**
+  * AMQP rate controller implementation using "manual" flow control
+  *
+  * @param blockGenerator       BlockGenerator instance used for storing messages
+  * @param receiver             AMQP receiver instance
+  */
+private final class AMQPManualRateController(
+                                              blockGenerator: BlockGenerator,
+                                              receiver: ProtonReceiver
+                                            ) extends AMQPRateController(blockGenerator, receiver) {
+
+  private final val CreditsDefault = 1000
+  private final val CreditsThreshold = 0
+
+  var count = 0
+  var credits = 0
+
+  override def beforeOpen(): Unit = {
+
+    count = 0
+
+    // if MaxValue it means no max rate limit specified in the Spark configuration
+    if (blockGenerator.getCurrentLimit != Long.MaxValue) {
+      credits = blockGenerator.getCurrentLimit.toInt
+    } else {
+      credits = CreditsDefault
+    }
+
+    // disable prefetch in order to use manual flow control
+    receiver.setPrefetch(0)
+    // grant the first bunch of credits
+    receiver.flow(credits)
+
+    super.beforeOpen()
+  }
+
+  override def beforeClose(): Unit = {
+
+    super.beforeClose()
+  }
+
+  override def onAcquired(delivery: ProtonDelivery, message: Message): Unit = {
+
+    // permit acquired, add message
+    if (blockGenerator.isActive()) {
+
+      // only AMQP message will be stored into BlockGenerator internal buffer;
+      // delivery is passed as metadata to onAddData and saved here internally
+      blockGenerator.addDataWithCallback(message, delivery)
+    }
+
+    count += 1
+    // if the credits exhaustion is near, need to grant more credits
+    if (count >= credits - CreditsThreshold) {
+      receiver.flow(credits - CreditsThreshold)
+      count = 0
+    }
+
+    super.onAcquired(delivery, message)
+  }
+
+  override def onThrottlingStarted(): Unit = {
+
+    super.onThrottlingStarted()
+  }
+
+  override def onThrottlingEnded(): Unit = {
+
+    // if the credits exhaustion is near, need to grant more credits
+    if (count >= credits - CreditsThreshold) {
+      receiver.flow(credits - CreditsThreshold)
+      count = 0
+    }
+
+    super.onThrottlingEnded()
+  }
+
+  override def onThrottling(delivery: ProtonDelivery, message: Message): Unit = {
+
+    count += 1
+
+    // during throttling (max rate limit exceeded), all messages are rejected
+    val rejected: Rejected = new Rejected()
+    val errorCondition: ErrorCondition = new ErrorCondition(AmqpSymbol.valueOf(AmqpRecvError), AmqpRecvThrottling)
+    rejected.setError(errorCondition)
+    delivery.disposition(rejected, true)
+
+    super.onThrottling(delivery, message)
   }
 }
