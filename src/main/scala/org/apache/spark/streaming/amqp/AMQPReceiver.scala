@@ -51,6 +51,9 @@ class AMQPReceiver[T](
 
   private var rateController: AMQPRateController = _
 
+  // *** Different approach using a ThrottleProtonReceiver implementation ***
+  // private var throttleReceiver: ThrottleProtonReceiver = _
+
   private var vertx: Vertx = _
   
   private var client: ProtonClient = _
@@ -110,6 +113,13 @@ class AMQPReceiver[T](
       rateController.close()
     }
 
+    // *** Different approach using a ThrottleProtonReceiver implementation ***
+    /*
+    if (throttleReceiver != null) {
+      throttleReceiver.close()
+    }
+    */
+
     if (connection != null) {
       connection.close()
     }
@@ -153,6 +163,26 @@ class AMQPReceiver[T](
     // after created, the AMQP receiver lifecycle is tied to the rate controller
     rateController = new AMQPPrefetchRateController(blockGenerator, receiver)
     rateController.open()
+
+    // *** Different approach using a ThrottleProtonReceiver implementation ***
+    /*
+    throttleReceiver = new ThrottlePrefetchReceiver(blockGenerator.getCurrentLimit, receiver)
+    throttleReceiver
+      .setAutoAccept(false)
+      .handler(new ProtonMessageHandler {
+        override def handle(delivery: ProtonDelivery, message: Message): Unit = {
+
+          // permit acquired, add message
+          if (blockGenerator.isActive()) {
+
+            // only AMQP message will be stored into BlockGenerator internal buffer;
+            // delivery is passed as metadata to onAddData and saved here internally
+            blockGenerator.addDataWithCallback(message, delivery)
+          }
+        }
+      })
+      .open()
+      */
   }
 
   /**
