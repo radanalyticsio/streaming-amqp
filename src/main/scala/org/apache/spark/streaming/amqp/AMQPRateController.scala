@@ -40,6 +40,13 @@ abstract class AMQPRateController(
        receiver: ProtonReceiver
       ) extends Logging {
 
+  // check on the receiver and block generator instances
+  if (receiver == null)
+    throw new IllegalArgumentException("The receiver instance cannot be null")
+
+  if (blockGenerator == null)
+    throw new IllegalArgumentException("The block generator instance cannot be null")
+
   protected final val AmqpRecvError = "org.apache:amqp-recv-error"
   protected final val AmqpRecvThrottling = "Throttling : Max rate limit exceeded"
 
@@ -90,7 +97,8 @@ abstract class AMQPRateController(
       receiver.close()
     }
 
-    scheduledExecutorService.shutdownNow()
+    scheduledExecutorService.shutdown()
+    scheduledExecutorService.awaitTermination(1, SECONDS)
   }
 
   /**
@@ -199,9 +207,9 @@ private final class AMQPPrefetchRateController(
 
   override def beforeOpen(): Unit = {
 
-    // if MaxValue it means no max rate limit specified in the Spark configuration
+    // if MaxValue or negative it means no max rate limit specified in the Spark configuration
     // so the prefetch isn't explicitly set but default Vert.x Proton value is used
-    if (blockGenerator.getCurrentLimit != Long.MaxValue)
+    if ((blockGenerator.getCurrentLimit != Long.MaxValue) && (blockGenerator.getCurrentLimit >= 0))
       receiver.setPrefetch(blockGenerator.getCurrentLimit.toInt)
 
     super.beforeOpen()
@@ -268,8 +276,8 @@ private final class AMQPManualRateController(
 
     count = 0
 
-    // if MaxValue it means no max rate limit specified in the Spark configuration
-    if (blockGenerator.getCurrentLimit != Long.MaxValue) {
+    // if MaxValue or negative it means no max rate limit specified in the Spark configuration
+    if ((blockGenerator.getCurrentLimit != Long.MaxValue) && (blockGenerator.getCurrentLimit >= 0)) {
       credits = blockGenerator.getCurrentLimit.toInt
     } else {
       credits = CreditsDefault
