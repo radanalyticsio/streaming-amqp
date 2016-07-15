@@ -123,12 +123,13 @@ object AMQPUtils {
 private [amqp]
 class AMQPUtilsPythonHelper {
 
-  def createStream[T](
+  def createStream(
        jssc: JavaStreamingContext,
        host: String,
        port: Int,
        address: String
-     ): JavaDStream[T] = {
-    createStream(jssc, host, port, address)
+     ): JavaDStream[String] = {
+
+    AMQPUtils.createStream[String](jssc, host, port, address)
   }
 }

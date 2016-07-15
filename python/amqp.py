@@ -15,8 +15,27 @@
 # limitations under the License.
 #
 
+from pyspark.serializers import UTF8Deserializer
+from pyspark.streaming import DStream
+
 __all__ = ['AMQPUtils']
+
 
 class AMQPUtils(object):
 
-    # TODO
+    @staticmethod
+    def createStream(ssc, host, port, address):
+
+        try:
+            helper = ssc._jvm.org.apache.spark.streaming.amqp.AMQPUtilsPythonHelper()
+        except TypeError as e:
+            if str(e) == "'JavaPackage' object is not callable":
+                AMQPUtils._printErrorMsg(ssc.sparkContext)
+            raise
+
+        jstream = helper.createStream(ssc._jssc, host, port, address)
+        return DStream(jstream, ssc, UTF8Deserializer())
+
+    @staticmethod
+    def _printErrorMsg(sc):
+        print("Spark Streaming's AMQP library not found in class path")

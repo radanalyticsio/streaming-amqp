@@ -6,6 +6,8 @@ scalaVersion in ThisBuild := "2.11.8"
 
 version := "0.0.1"
 
+unmanagedResourceDirectories in Compile += baseDirectory.value / "python"
+
 // **** from the sbt-spark-package plugin ****
 
 spName := "org.spark-project/dstream-amqp" // the name of your Spark Package
