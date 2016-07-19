@@ -74,10 +74,10 @@ private final class AMQPAsyncFlowController(
                      vertx: Vertx,
                      blockGenerator: BlockGenerator,
                      receiver: ProtonReceiver
-                   ) extends AMQPFlowController(blockGenerator, receiver) {
+                   ) extends AMQPFlowController(blockGenerator, receiver) with Handler[Long] {
 
   private final val CreditsDefault = 10
-  private final val CreditsThreshold = (CreditsDefault / 100) * 50
+  private final val CreditsThreshold = (CreditsDefault * 50) / 100
 
   var count = 0
   var credits = 0
@@ -90,13 +90,15 @@ private final class AMQPAsyncFlowController(
   val permitsPerSecond: Double = blockGenerator.getCurrentLimit.toDouble
   val stableIntervalMicros: Double = TimeUnit.SECONDS.toMicros(1L) / permitsPerSecond
 
-  val timerHandler: TimerHandler = new TimerHandler()
-  var timerSet: Boolean = false
+  var timerScheduled: Boolean = false
 
   override def beforeOpen(): Unit = {
 
     count = 0
     credits = CreditsDefault
+    last = 0L
+
+    queue.clear()
 
     logInfo(s"permitsPerSecond ${permitsPerSecond}, stableIntervalMicros ${TimeUnit.MICROSECONDS.toMillis(stableIntervalMicros.toLong)}")
 
@@ -119,87 +121,112 @@ private final class AMQPAsyncFlowController(
 
     // the sender rate is lower than the maximum specified,
     // the adding on blockGenerator should not block
-    if (now > last + stableIntervalMicros) {
+    // NOTE : in-time message can be processed only if queue is empty
+    //        in order to avoid "out of order" messages processing
+    if ((now > last + stableIntervalMicros) && queue.isEmpty) {
 
-      // permit acquired, add message
-      if (blockGenerator.isActive()) {
+      // add message and delivery to the block generator
+      addMessageDelivery(delivery, message)
 
-        // only AMQP message will be stored into BlockGenerator internal buffer;
-        // delivery is passed as metadata to onAddData and saved here internally
-        blockGenerator.addDataWithCallback(message, delivery)
-      }
-
-      count += 1
-      last = TimeUnit.NANOSECONDS.toMicros(System.nanoTime)
-
-      // if the credits exhaustion is near, need to grant more credits
-      if (count >= credits - CreditsThreshold) {
-        logInfo(s"count ${count} ... issuing ${credits - CreditsThreshold} credits")
-        receiver.flow(credits - CreditsThreshold)
-        count = 0
-      }
+      // issue credits if needed
+      issueCredits()
 
     // the sender rate is higher than the maximum specified,
     // this message is arrived too quickly
     } else {
 
+      logInfo(s"enqueue delivery ${ new String(delivery.getTag()) }")
+
       queue.enqueue(new Tuple2(delivery, message))
 
-      // start timer for dequeuing messages
-      if (!timerSet) {
-
-        var delay: Long = TimeUnit.MICROSECONDS.toMillis(last + stableIntervalMicros.toLong - now)
-        // Vert.x timer resolution 1 ms
-        if (delay == 0)
-          delay = 1L
-
-        timerSet = true
-        vertx.setTimer(delay, timerHandler)
-      }
+      // schedule timer for dequeuing messages
+      scheduleTimer()
 
     }
 
     super.acquire(delivery, message)
   }
 
-  class TimerHandler extends Handler[Long] {
+  /**
+    * Schedule the Vert.x timer for handling the messages queue
+    */
+  private def scheduleTimer(): Unit = {
 
-    override def handle(event: Long): Unit = {
+    // timer not already scheduled
+    if (!timerScheduled) {
 
-      logInfo("Dequeue")
+      var delay: Long = TimeUnit.MICROSECONDS.toMillis(stableIntervalMicros.toLong)
+      // Vert.x timer resolution 1 ms
+      if (delay == 0)
+        delay = 1L
 
-      val t = queue.dequeue()
-      // permit acquired, add message
-      if (blockGenerator.isActive()) {
+      logInfo(s"timer scheduled ${delay}")
+      vertx.setTimer(delay, this)
 
-        // only AMQP message will be stored into BlockGenerator internal buffer;
-        // delivery is passed as metadata to onAddData and saved here internally
-        blockGenerator.addDataWithCallback(t._2, t._1)
-      }
-
-      count += 1
-      last = TimeUnit.NANOSECONDS.toMicros(System.nanoTime)
-
-      if (!queue.isEmpty) {
-
-        var delay: Long = stableIntervalMicros.toLong
-        // Vert.x timer resolution 1 ms
-        if (delay == 0)
-          delay = 1L
-
-        if (queue.size >= CreditsThreshold) {
-          logInfo(s"queue.size ${queue.size} ... issuing ${credits - CreditsThreshold} credits")
-          receiver.flow(credits - CreditsThreshold)
-          count = 0
-        }
-
-        vertx.setTimer(delay, timerHandler)
-
-      } else {
-        timerSet = false
-      }
+      timerScheduled = true
     }
   }
+
+  /**
+    * Check and issue credits
+    */
+  private def issueCredits(): Unit = {
+
+    // if the credits exhaustion is near, need to grant more credits
+    if (count >= credits - CreditsThreshold) {
+
+      val creditsToIssue = count
+      logInfo(s"queue.size ${queue.size}, count ${count} >= ${credits - CreditsThreshold} ... issuing ${creditsToIssue} credits")
+      receiver.flow(creditsToIssue)
+      count = 0
+    }
+  }
+
+  /**
+    * Add message and delivery to the block generator
+    * @param delivery       Proton delivery instance
+    * @param message        Proton AMQP message
+    */
+  private def addMessageDelivery(delivery: ProtonDelivery, message: Message): Unit = {
+
+    logInfo(s"process delivery ${ new String(delivery.getTag()) }")
+
+    // permit acquired, add message
+    if (blockGenerator.isActive()) {
+
+      // only AMQP message will be stored into BlockGenerator internal buffer;
+      // delivery is passed as metadata to onAddData and saved here internally
+      blockGenerator.addDataWithCallback(message, delivery)
+    }
+
+    count += 1
+    last = TimeUnit.NANOSECONDS.toMicros(System.nanoTime)
+  }
+  /**
+    * Handler for the Vert.x timer scheduled for handling the messages queue
+    * @param timerId    Timer ID
+    */
+  override def handle(timerId: Long): Unit = {
+
+    timerScheduled = false
+
+    val t = queue.dequeue()
+
+    logInfo(s"dequeue delivery ${ new String(t._1.getTag()) }")
+
+    // add message and delivery to the block generator
+    addMessageDelivery(t._1, t._2)
+
+    // issue credits if needed
+    issueCredits()
+
+    // re-scheduled timer only if there is something in the queue to process
+    if (!queue.isEmpty) {
+      scheduleTimer()
+    }
+
+  }
+
 }
 
 private final class AMQPSyncFlowController(
@@ -244,8 +271,10 @@ private final class AMQPSyncFlowController(
     count += 1
     // if the credits exhaustion is near, need to grant more credits
     if (count >= credits - CreditsThreshold) {
-      logInfo(s"count ${count} ... issuing ${credits - CreditsThreshold} credits")
-      receiver.flow(credits - CreditsThreshold)
+
+      val creditsToIssue = count
+      logInfo(s"count ${count} >= ${credits - CreditsThreshold} ... issuing ${creditsToIssue} credits")
+      receiver.flow(creditsToIssue)
       count = 0
     }
 
