@@ -145,7 +145,7 @@ private final class AMQPAsyncFlowController(
     // this message is arrived too quickly
     } else {
 
-      logInfo(s"Enqueue delivery ${ new String(delivery.getTag()) }")
+      logInfo(s"--> Enqueue delivery tag [${ new String(delivery.getTag()) }]")
 
       queue.enqueue(new Tuple2(delivery, message))
 
@@ -198,10 +198,10 @@ private final class AMQPAsyncFlowController(
     */
   private def addMessageDelivery(delivery: ProtonDelivery, message: Message): Unit = {
 
-    logInfo(s"process delivery ${ new String(delivery.getTag()) }")
-
     // permit acquired, add message
     if (blockGenerator.isActive()) {
+
+      logInfo(s"Process delivery tag [${ new String(delivery.getTag()) }]")
 
       // only AMQP message will be stored into BlockGenerator internal buffer;
       // delivery is passed as metadata to onAddData and saved here internally
@@ -221,7 +221,7 @@ private final class AMQPAsyncFlowController(
 
     val t = queue.dequeue()
 
-    logInfo(s"Dequeue delivery tag [${ new String(t._1.getTag()) }]")
+    logInfo(s"<-- Dequeue delivery tag [${ new String(t._1.getTag()) }]")
 
     // add message and delivery to the block generator
     addMessageDelivery(t._1, t._2)
@@ -249,8 +249,8 @@ private final class AMQPSyncFlowController(
                       receiver: ProtonReceiver
                     ) extends AMQPFlowController(blockGenerator, receiver) {
 
-  private final val CreditsDefault = 200
-  private final val CreditsThreshold = (CreditsDefault / 100) * 50
+  private final val CreditsDefault = 10
+  private final val CreditsThreshold = (CreditsDefault * 50) / 100
 
   var count = 0
   var credits = 0
@@ -277,6 +277,8 @@ private final class AMQPSyncFlowController(
 
     // permit acquired, add message
     if (blockGenerator.isActive()) {
+
+      logInfo(s"Process delivery tag [${ new String(delivery.getTag()) }]")
 
       // only AMQP message will be stored into BlockGenerator internal buffer;
       // delivery is passed as metadata to onAddData and saved here internally
