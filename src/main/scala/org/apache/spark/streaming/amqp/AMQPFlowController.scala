@@ -70,6 +70,13 @@ abstract class AMQPFlowController(
   def acquire(delivery: ProtonDelivery, message: Message): Unit = { }
 }
 
+/**
+  * AMQP rate controller implementation using asynchronous way with decoupling queue
+  *
+  * @param vertx                Vert.x instance used for timing feature
+  * @param blockGenerator       BlockGenerator instance used for storing messages
+  * @param receiver             AMQP receiver instance
+  */
 private final class AMQPAsyncFlowController(
                      vertx: Vertx,
                      blockGenerator: BlockGenerator,
@@ -82,6 +89,8 @@ private final class AMQPAsyncFlowController(
   var count = 0
   var credits = 0
 
+  // queue for decoupling message handler by Vert.x with block generator add feature
+  // in order to avoid blocking Vert.x event loop when message rate is higher than maximum
   var queue: mutable.Queue[(ProtonDelivery, Message)] = new mutable.Queue[(ProtonDelivery, Message)]()
 
   var last: Long = 0L
@@ -97,6 +106,7 @@ private final class AMQPAsyncFlowController(
     count = 0
     credits = CreditsDefault
     last = 0L
+    timerScheduled = false
 
     queue.clear()
 
@@ -135,13 +145,12 @@ private final class AMQPAsyncFlowController(
     // this message is arrived too quickly
     } else {
 
-      logInfo(s"enqueue delivery ${ new String(delivery.getTag()) }")
+      logInfo(s"Enqueue delivery ${ new String(delivery.getTag()) }")
 
       queue.enqueue(new Tuple2(delivery, message))
 
       // schedule timer for dequeuing messages
       scheduleTimer()
-
     }
 
     super.acquire(delivery, message)
@@ -160,7 +169,7 @@ private final class AMQPAsyncFlowController(
       if (delay == 0)
         delay = 1L
 
-      logInfo(s"timer scheduled ${delay}")
+      logInfo(s"Timer scheduled every ${delay} ms")
       vertx.setTimer(delay, this)
 
       timerScheduled = true
@@ -176,7 +185,7 @@ private final class AMQPAsyncFlowController(
     if (count >= credits - CreditsThreshold) {
 
       val creditsToIssue = count
-      logInfo(s"queue.size ${queue.size}, count ${count} >= ${credits - CreditsThreshold} ... issuing ${creditsToIssue} credits")
+      logInfo(s"Flow: queue.size ${queue.size}, count ${count} >= ${credits - CreditsThreshold} ... issuing ${creditsToIssue} credits")
       receiver.flow(creditsToIssue)
       count = 0
     }
@@ -197,10 +206,10 @@ private final class AMQPAsyncFlowController(
       // only AMQP message will be stored into BlockGenerator internal buffer;
       // delivery is passed as metadata to onAddData and saved here internally
       blockGenerator.addDataWithCallback(message, delivery)
-    }
 
-    count += 1
-    last = TimeUnit.NANOSECONDS.toMicros(System.nanoTime)
+      count += 1
+      last = TimeUnit.NANOSECONDS.toMicros(System.nanoTime)
+    }
   }
   /**
     * Handler for the Vert.x timer scheduled for handling the messages queue
@@ -212,7 +221,7 @@ private final class AMQPAsyncFlowController(
 
     val t = queue.dequeue()
 
-    logInfo(s"dequeue delivery ${ new String(t._1.getTag()) }")
+    logInfo(s"Dequeue delivery tag [${ new String(t._1.getTag()) }]")
 
     // add message and delivery to the block generator
     addMessageDelivery(t._1, t._2)
@@ -229,6 +238,12 @@ private final class AMQPAsyncFlowController(
 
 }
 
+/**
+  * AMQP rate controller implementation using synchronous way blocking on block generator
+  *
+  * @param blockGenerator       BlockGenerator instance used for storing messages
+  * @param receiver             AMQP receiver instance
+  */
 private final class AMQPSyncFlowController(
                       blockGenerator: BlockGenerator,
                       receiver: ProtonReceiver
@@ -266,16 +281,16 @@ private final class AMQPSyncFlowController(
       // only AMQP message will be stored into BlockGenerator internal buffer;
       // delivery is passed as metadata to onAddData and saved here internally
       blockGenerator.addDataWithCallback(message, delivery)
-    }
 
-    count += 1
-    // if the credits exhaustion is near, need to grant more credits
-    if (count >= credits - CreditsThreshold) {
+      count += 1
+      // if the credits exhaustion is near, need to grant more credits
+      if (count >= credits - CreditsThreshold) {
 
-      val creditsToIssue = count
-      logInfo(s"count ${count} >= ${credits - CreditsThreshold} ... issuing ${creditsToIssue} credits")
-      receiver.flow(creditsToIssue)
-      count = 0
+        val creditsToIssue = count
+        logInfo(s"count ${count} >= ${credits - CreditsThreshold} ... issuing ${creditsToIssue} credits")
+        receiver.flow(creditsToIssue)
+        count = 0
+      }
     }
 
     super.acquire(delivery, message)
