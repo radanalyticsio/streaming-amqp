@@ -19,7 +19,7 @@ package org.apache.spark.streaming.amqp
 
 import java.util.concurrent.ConcurrentHashMap
 
-import io.vertx.core.{AsyncResult, Handler, Vertx}
+import io.vertx.core.{AsyncResult, Handler, Vertx, Context}
 import io.vertx.proton._
 import org.apache.qpid.proton.amqp.messaging.Accepted
 import org.apache.qpid.proton.message.Message
@@ -49,11 +49,13 @@ class AMQPReceiver[T](
 
   private final val MaxStoreAttempts = 3
 
-  private var rateController: AMQPRateController = _
+  // private var rateController: AMQPRateController = _
+  private var rateController: AMQPFlowController = _
 
   // *** Different approach using a ThrottleProtonReceiver implementation ***
   // private var throttleReceiver: ThrottleProtonReceiver = _
 
+  private var context: Context = _
   private var vertx: Vertx = _
   
   private var client: ProtonClient = _
@@ -87,6 +89,9 @@ class AMQPReceiver[T](
       override def handle(ar: AsyncResult[ProtonConnection]): Unit = {
         
         if (ar.succeeded()) {
+
+          // get the Vert.x context created internally by the Proton library
+          context = vertx.getOrCreateContext()
 
           connection = ar.result()
           processConnection(connection)
@@ -161,7 +166,9 @@ class AMQPReceiver[T](
     val receiver = connection.createReceiver(address)
 
     // after created, the AMQP receiver lifecycle is tied to the rate controller
-    rateController = new AMQPPrefetchRateController(blockGenerator, receiver)
+    // rateController = new AMQPPrefetchRateController(blockGenerator, receiver)
+    // rateController = new AMQPSyncFlowController(blockGenerator, receiver)
+    rateController = new AMQPAsyncFlowController(vertx, blockGenerator, receiver)
     rateController.open()
 
     // *** Different approach using a ThrottleProtonReceiver implementation ***
@@ -241,12 +248,20 @@ class AMQPReceiver[T](
 
         if (stored) {
 
-          // for the deliveries related to the current generated block
-          blockDeliveryMap.get(blockId).foreach(delivery => {
+          // running delivery dispositions on the Vert.x context
+          // not in the current pushing block thread
+          context.runOnContext(new Handler[Void] {
 
-            // for unsettled messages, send ACCEPTED delivery status
-            if (!delivery.remotelySettled()) {
-              delivery.disposition(Accepted.getInstance(), true)
+            override def handle(event: Void): Unit = {
+
+              // for the deliveries related to the current generated block
+              blockDeliveryMap.get(blockId).foreach(delivery => {
+
+                // for unsettled messages, send ACCEPTED delivery status
+                if (!delivery.remotelySettled()) {
+                  delivery.disposition(Accepted.getInstance(), true)
+                }
+              })
             }
           })
 
