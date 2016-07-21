@@ -1,7 +1,7 @@
 package org.apache.spark.streaming.amqp
 
 import java.lang.Long
-import java.util.concurrent.TimeUnit
+import java.util.concurrent._
 
 import io.vertx.core.{Handler, Vertx}
 import io.vertx.proton.{ProtonDelivery, ProtonMessageHandler, ProtonReceiver}
@@ -83,7 +83,7 @@ private final class AMQPAsyncFlowController(
                      receiver: ProtonReceiver
                    ) extends AMQPFlowController(blockGenerator, receiver) with Handler[Long] {
 
-  private final val CreditsDefault = 10
+  private final val CreditsDefault = 1000
   private final val CreditsThreshold = (CreditsDefault * 50) / 100
 
   var count = 0
@@ -249,7 +249,7 @@ private final class AMQPSyncFlowController(
                       receiver: ProtonReceiver
                     ) extends AMQPFlowController(blockGenerator, receiver) {
 
-  private final val CreditsDefault = 10
+  private final val CreditsDefault = 1000
   private final val CreditsThreshold = (CreditsDefault * 50) / 100
 
   var count = 0
@@ -297,4 +297,177 @@ private final class AMQPSyncFlowController(
 
     super.acquire(delivery, message)
   }
+}
+
+/**
+  * AMQP rate controller implementation using high resolution asynchronous way with decoupling queue
+  *
+  * @param blockGenerator       BlockGenerator instance used for storing messages
+  * @param receiver             AMQP receiver instance
+  */
+private final class AMQPHrAsyncFlowController(
+                       blockGenerator: BlockGenerator,
+                       receiver: ProtonReceiver
+                     ) extends AMQPFlowController(blockGenerator, receiver) with Runnable {
+
+  private final val CreditsDefault = 1000
+  private final val CreditsThreshold = (CreditsDefault * 50) / 100
+  private final val MinStableIntervalMicros = 100.0
+
+  var count = 0
+  var credits = 0
+
+  // queue for decoupling message handler by Vert.x with block generator add feature
+  // in order to avoid blocking Vert.x event loop when message rate is higher than maximum
+  var queue: BlockingQueue[(ProtonDelivery, Message)] = new LinkedBlockingQueue[(ProtonDelivery, Message)]()
+
+  var last: Long = 0L
+
+  // as defined in the RateLimiter class (from Google Guava library used by Spark)
+  val permitsPerSecond: Double = blockGenerator.getCurrentLimit.toDouble
+
+  val stableIntervalMicros: Double = {
+    // with high permitsPerSecond (i.e. no max rate set), the division could give value near 0 us.
+    // A minimum value for the scheduled executor at fixed rate is needed
+    if (TimeUnit.SECONDS.toMicros(1L) < permitsPerSecond) MinStableIntervalMicros else TimeUnit.SECONDS.toMicros(1L) / permitsPerSecond
+  }
+
+  // timer used for dequeing messages
+  private val scheduledExecutorService: ScheduledExecutorService = Executors.newScheduledThreadPool(1)
+  private var scheduled: ScheduledFuture[_] = null
+
+  override def beforeOpen(): Unit = {
+
+    count = 0
+    credits = CreditsDefault
+    last = 0L
+
+    queue.clear()
+
+    logInfo(s"permitsPerSecond ${permitsPerSecond}, stableIntervalMicros ${stableIntervalMicros}")
+
+    // disable prefetch in order to use manual flow control
+    receiver.setPrefetch(0)
+    // grant the first bunch of credits
+    receiver.flow(credits)
+
+    super.beforeOpen()
+  }
+
+  override def beforeClose(): Unit = {
+
+    scheduledExecutorService.shutdown()
+    scheduledExecutorService.awaitTermination(1, TimeUnit.SECONDS)
+    scheduled = null
+
+    super.beforeClose()
+  }
+
+  override def acquire(delivery: ProtonDelivery, message: Message): Unit = {
+
+    val now: Long = TimeUnit.NANOSECONDS.toMicros(System.nanoTime)
+
+    // queue empyt, the running timer can be cancelled
+    if ((queue.isEmpty) && (scheduled != null)) {
+      scheduled.cancel(false)
+      scheduled = null
+      logInfo(s"Timer cancelled")
+    }
+
+    // the sender rate is lower than the maximum specified,
+    // the adding on blockGenerator should not block
+    // NOTE : in-time message can be processed only if queue is empty
+    //        in order to avoid "out of order" messages processing
+    if ((now > last + stableIntervalMicros) && queue.isEmpty) {
+
+      // add message and delivery to the block generator
+      addMessageDelivery(delivery, message)
+
+      // issue credits if needed
+      issueCredits()
+
+    // the sender rate is higher than the maximum specified,
+    // this message is arrived too quickly
+    } else {
+
+      logInfo(s"--> Enqueue delivery tag [${ new String(delivery.getTag()) }]")
+
+      queue.put(new Tuple2(delivery, message))
+
+      // schedule timer for dequeuing messages
+      scheduleTimer()
+    }
+
+    super.acquire(delivery, message)
+  }
+
+  /**
+    * Schedule the timer for handling the messages queue
+    */
+  private def scheduleTimer(): Unit = {
+
+    // timer not already scheduled
+    if (scheduled == null) {
+
+      logInfo(s"Timer scheduled every ${stableIntervalMicros.toLong} us")
+      scheduled = scheduledExecutorService.scheduleWithFixedDelay(this, stableIntervalMicros.toLong, stableIntervalMicros.toLong, TimeUnit.MICROSECONDS)
+    }
+  }
+
+  /**
+    * Check and issue credits
+    */
+  private def issueCredits(): Unit = {
+
+    // if the credits exhaustion is near, need to grant more credits
+    if (count >= credits - CreditsThreshold) {
+
+      val creditsToIssue = count
+      logInfo(s"Flow: queue.size ${queue.size}, count ${count} >= ${credits - CreditsThreshold} ... issuing ${creditsToIssue} credits")
+      receiver.flow(creditsToIssue)
+      count = 0
+    }
+  }
+
+  /**
+    * Add message and delivery to the block generator
+    *
+    * @param delivery       Proton delivery instance
+    * @param message        Proton AMQP message
+    */
+  private def addMessageDelivery(delivery: ProtonDelivery, message: Message): Unit = {
+
+    // permit acquired, add message
+    if (blockGenerator.isActive()) {
+
+      logInfo(s"Process delivery tag [${ new String(delivery.getTag()) }]")
+
+      // only AMQP message will be stored into BlockGenerator internal buffer;
+      // delivery is passed as metadata to onAddData and saved here internally
+      blockGenerator.addDataWithCallback(message, delivery)
+
+      count += 1
+      last = TimeUnit.NANOSECONDS.toMicros(System.nanoTime)
+    }
+  }
+
+  /**
+    * Running scheduled timer for handling the messages queue
+    */
+  override def run(): Unit = {
+
+    if (!queue.isEmpty) {
+
+      val t = queue.take()
+
+      logInfo(s"<-- Dequeue delivery tag [${new String(t._1.getTag())}]")
+
+      // add message and delivery to the block generator
+      addMessageDelivery(t._1, t._2)
+
+      // issue credits if needed
+      issueCredits()
+    }
+  }
+
 }

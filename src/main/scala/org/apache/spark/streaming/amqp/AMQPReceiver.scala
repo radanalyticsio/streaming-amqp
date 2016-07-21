@@ -168,7 +168,8 @@ class AMQPReceiver[T](
     // after created, the AMQP receiver lifecycle is tied to the rate controller
     // rateController = new AMQPPrefetchRateController(blockGenerator, receiver)
     // rateController = new AMQPSyncFlowController(blockGenerator, receiver)
-    rateController = new AMQPAsyncFlowController(vertx, blockGenerator, receiver)
+    // rateController = new AMQPAsyncFlowController(vertx, blockGenerator, receiver)
+    rateController = new AMQPHrAsyncFlowController(blockGenerator, receiver)
     rateController.open()
 
     // *** Different approach using a ThrottleProtonReceiver implementation ***
