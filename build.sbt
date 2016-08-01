@@ -4,7 +4,7 @@ organization := "org.spark-project"
 
 scalaVersion in ThisBuild := "2.11.8"
 
-version := "0.0.1"
+version := "0.1.0"
 
 unmanagedResourceDirectories in Compile += baseDirectory.value / "python"
 
@@ -12,7 +12,7 @@ unmanagedResourceDirectories in Compile += baseDirectory.value / "python"
 
 spName := "org.spark-project/dstream-amqp" // the name of your Spark Package
 
-sparkVersion in ThisBuild := "2.0.0-preview" // the Spark Version your package depends on
+sparkVersion in ThisBuild := "2.0.0" // the Spark Version your package depends on
 
 sparkComponents in ThisBuild := Seq("streaming") // creates a dependency on spark-streaming
 
@@ -22,8 +22,8 @@ libraryDependencies ++= Seq(
   // 2.0.0-preview brings jackson-module-scala_2.11:2.5.3 but Vert.x Proton brings all jackson.core JARs 2.6.5
   // there is a conflict and a Spark Streaming exception. I'm going to exclude jackson.core JARS from Vert.x Proton
   // Waiting for Spark 2.0.0-rc1 which fixes that
-  "io.vertx" % "vertx-proton" % vertxProton excludeAll(ExclusionRule(organization = "com.fasterxml.jackson.core")),
-  //"io.vertx" % "vertx-proton" % vertxProton,
+  //"io.vertx" % "vertx-proton" % vertxProton excludeAll(ExclusionRule(organization = "com.fasterxml.jackson.core")),
+  "io.vertx" % "vertx-proton" % vertxProton,
   "org.scalatest" %% "scalatest" % "2.2.5" % "test",
   "com.novocode" % "junit-interface" % "0.11" % "test",
   "org.apache.activemq" % "activemq-broker" % "5.13.3" % "test",
@@ -56,6 +56,3 @@ assemblyMergeStrategy in assembly := {
 
 // to skip the test during assembly,
 test in assembly := {}
-
-// Remove this once Spark 2.0.0 is out
-//resolvers in ThisBuild += "apache-snapshots" at "https://repository.apache.org/snapshots/"
