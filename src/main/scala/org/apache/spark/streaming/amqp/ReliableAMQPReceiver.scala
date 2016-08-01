@@ -19,7 +19,7 @@ package org.apache.spark.streaming.amqp
 
 import java.util.concurrent.ConcurrentHashMap
 
-import io.vertx.core.{AsyncResult, Handler, Vertx, Context}
+import io.vertx.core.{AsyncResult, Context, Handler, Vertx}
 import io.vertx.proton._
 import org.apache.qpid.proton.amqp.messaging.Accepted
 import org.apache.qpid.proton.message.Message
@@ -30,7 +30,7 @@ import org.apache.spark.streaming.receiver.{BlockGenerator, BlockGeneratorListen
 import scala.collection.mutable
 
 /**
- * Receiver for getting messages from an AMQP sender node
+ * Reliable receiver for getting messages from an AMQP sender node
  *
  * @param host					    AMQP container hostname or IP address to connect
  * @param port					    AMQP container port to connect
@@ -39,7 +39,7 @@ import scala.collection.mutable
  * @param storageLevel	    RDD storage level
  */
 private[streaming]
-class AMQPReceiver[T](
+class ReliableAMQPReceiver[T](
       host: String,
       port: Int,
       address: String,
@@ -49,11 +49,7 @@ class AMQPReceiver[T](
 
   private final val MaxStoreAttempts = 3
 
-  // private var rateController: AMQPRateController = _
-  private var rateController: AMQPFlowController = _
-
-  // *** Different approach using a ThrottleProtonReceiver implementation ***
-  // private var throttleReceiver: ThrottleProtonReceiver = _
+  private var flowController: AMQPFlowController = _
 
   private var context: Context = _
   private var vertx: Vertx = _
@@ -114,16 +110,9 @@ class AMQPReceiver[T](
       blockGenerator.stop()
     }
 
-    if (rateController != null) {
-      rateController.close()
+    if (flowController != null) {
+      flowController.close()
     }
-
-    // *** Different approach using a ThrottleProtonReceiver implementation ***
-    /*
-    if (throttleReceiver != null) {
-      throttleReceiver.close()
-    }
-    */
 
     if (connection != null) {
       connection.close()
@@ -166,31 +155,8 @@ class AMQPReceiver[T](
     val receiver = connection.createReceiver(address)
 
     // after created, the AMQP receiver lifecycle is tied to the rate controller
-    // rateController = new AMQPPrefetchRateController(blockGenerator, receiver)
-    rateController = new AMQPSyncFlowController(blockGenerator, receiver)
-    // rateController = new AMQPAsyncFlowController(vertx, blockGenerator, receiver)
-    // rateController = new AMQPHrAsyncFlowController(blockGenerator, receiver)
-    rateController.open()
-
-    // *** Different approach using a ThrottleProtonReceiver implementation ***
-    /*
-    throttleReceiver = new ThrottlePrefetchReceiver(blockGenerator.getCurrentLimit, receiver)
-    throttleReceiver
-      .setAutoAccept(false)
-      .handler(new ProtonMessageHandler {
-        override def handle(delivery: ProtonDelivery, message: Message): Unit = {
-
-          // permit acquired, add message
-          if (blockGenerator.isActive()) {
-
-            // only AMQP message will be stored into BlockGenerator internal buffer;
-            // delivery is passed as metadata to onAddData and saved here internally
-            blockGenerator.addDataWithCallback(message, delivery)
-          }
-        }
-      })
-      .open()
-      */
+    flowController = new AMQPSyncFlowController(blockGenerator, receiver)
+    flowController.open()
   }
 
   /**

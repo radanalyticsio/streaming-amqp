@@ -45,6 +45,6 @@ class AMQPInputDStream[T: ClassTag](
     ) extends ReceiverInputDStream[T](ssc) {
   
   def getReceiver(): Receiver[T] = {
-    new AMQPReceiver(host, port, address, messageConverter, storageLevel)
+    new ReliableAMQPReceiver(host, port, address, messageConverter, storageLevel)
   }
 }
