@@ -39,7 +39,7 @@ object AMQPTemperature {
   private val master: String = "local[2]"
   private val appName: String = getClass().getSimpleName()
 
-  private val batchDuration: Duration = Seconds(1)
+  private val batchDuration: Duration = Seconds(5)
 
   private val host: String = "localhost"
   private val port: Int = 5672
@@ -47,11 +47,14 @@ object AMQPTemperature {
 
   def main(args: Array[String]): Unit = {
 
+    // Logger.getLogger("org").setLevel(Level.WARN)
+
     def messageConverter(message: Message): Option[Int] = {
 
       val body: Section = message.getBody()
       if (body.isInstanceOf[AmqpValue]) {
-        val temp: Int = body.asInstanceOf[AmqpValue].getValue().asInstanceOf[Int]
+        val temp: Int = body.asInstanceOf[AmqpValue].getValue().asInstanceOf[String].toInt
+        //val temp: Int = body.asInstanceOf[AmqpValue].getValue().asInstanceOf[Int]
         Some(temp)
       } else {
         None
@@ -59,12 +62,19 @@ object AMQPTemperature {
     }
 
     val conf = new SparkConf().setMaster(master).setAppName(appName)
+    conf.set("spark.streaming.receiver.writeAheadLog.enable", "true")
+    //conf.set("spark.streaming.receiver.maxRate", "10000")
+    //conf.set("spark.streaming.backpressure.enabled", "true")
+    //conf.set("spark.streaming.blockInterval", "1ms")
     val ssc = new StreamingContext(conf, batchDuration)
+    ssc.checkpoint("/tmp/amqp-spark-streaming")
 
     val receiveStream = AMQPUtils.createStream(ssc, host, port, address, messageConverter _, StorageLevel.MEMORY_ONLY)
 
     // get maximum temperature in a window
-    val max = receiveStream.reduceByWindow((a,b) => if (a > b) a else b, Seconds(5), Seconds(5))
+
+    //val max = receiveStream.reduceByWindow((a,b) => if (a > b) a else b, Seconds(5), Seconds(5))
+    val max = receiveStream.reduce((a,b) => if (a > b) a else b)
 
     max.print()
 
