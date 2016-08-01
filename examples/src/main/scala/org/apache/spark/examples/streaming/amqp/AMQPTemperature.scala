@@ -39,7 +39,8 @@ object AMQPTemperature {
   private val master: String = "local[2]"
   private val appName: String = getClass().getSimpleName()
 
-  private val batchDuration: Duration = Seconds(5)
+  private val batchDuration: Duration = Seconds(1)
+  private val checkpointDir: String = "/tmp/amqp-spark-streaming"
 
   private val host: String = "localhost"
   private val port: Int = 5672
@@ -49,17 +50,24 @@ object AMQPTemperature {
 
     // Logger.getLogger("org").setLevel(Level.WARN)
 
-    def messageConverter(message: Message): Option[Int] = {
+    val ssc = StreamingContext.getOrCreate(checkpointDir, createStreamingContect)
 
-      val body: Section = message.getBody()
-      if (body.isInstanceOf[AmqpValue]) {
-        val temp: Int = body.asInstanceOf[AmqpValue].getValue().asInstanceOf[String].toInt
-        //val temp: Int = body.asInstanceOf[AmqpValue].getValue().asInstanceOf[Int]
-        Some(temp)
-      } else {
-        None
-      }
+    ssc.start()
+    ssc.awaitTermination()
+  }
+
+  def messageConverter(message: Message): Option[Int] = {
+
+    val body: Section = message.getBody()
+    if (body.isInstanceOf[AmqpValue]) {
+      val temp: Int = body.asInstanceOf[AmqpValue].getValue().asInstanceOf[String].toInt
+      Some(temp)
+    } else {
+      None
     }
+  }
+
+  def createStreamingContect(): StreamingContext = {
 
     val conf = new SparkConf().setMaster(master).setAppName(appName)
     conf.set("spark.streaming.receiver.writeAheadLog.enable", "true")
@@ -67,19 +75,18 @@ object AMQPTemperature {
     //conf.set("spark.streaming.backpressure.enabled", "true")
     //conf.set("spark.streaming.blockInterval", "1ms")
     val ssc = new StreamingContext(conf, batchDuration)
-    ssc.checkpoint("/tmp/amqp-spark-streaming")
+    ssc.checkpoint(checkpointDir)
 
     val receiveStream = AMQPUtils.createStream(ssc, host, port, address, messageConverter _, StorageLevel.MEMORY_ONLY)
 
     // get maximum temperature in a window
 
-    //val max = receiveStream.reduceByWindow((a,b) => if (a > b) a else b, Seconds(5), Seconds(5))
-    val max = receiveStream.reduce((a,b) => if (a > b) a else b)
+    val max = receiveStream.reduceByWindow((a,b) => if (a > b) a else b, Seconds(5), Seconds(5))
+    //val max = receiveStream.reduce((a,b) => if (a > b) a else b)
 
     max.print()
 
-    ssc.start()
-    ssc.awaitTermination()
+    ssc
   }
 }
 
@@ -121,7 +128,7 @@ object AMQPPublisher {
               val temp: Int = 20 + random.nextInt(5)
 
               val message: Message = ProtonHelper.message()
-              message.setBody(new AmqpValue(temp))
+              message.setBody(new AmqpValue(temp.toString))
 
               println("Temperature = " + temp)
               sender.send(message, new Handler[ProtonDelivery] {
