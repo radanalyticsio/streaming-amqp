@@ -23,6 +23,7 @@ import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.api.java.{JavaDStream, JavaReceiverInputDStream, JavaStreamingContext}
 import org.apache.spark.streaming.dstream.ReceiverInputDStream
+import org.apache.spark.streaming.util.WriteAheadLogUtils
 
 import scala.reflect.ClassTag
 
@@ -46,7 +47,8 @@ object AMQPUtils {
        messageConverter: Message => Option[T],
        storageLevel: StorageLevel
      ): ReceiverInputDStream[T] = {
-    new AMQPInputDStream(ssc, host, port, address, messageConverter, storageLevel)
+    val walEnabled = WriteAheadLogUtils.enableReceiverLog(ssc.conf)
+    new AMQPInputDStream(ssc, host, port, address, messageConverter, walEnabled, storageLevel)
   }
 
   /**
@@ -90,7 +92,10 @@ object AMQPUtils {
     def fn: (Message) => Option[T] = (x: Message) => messageConverter.call(x)
     implicit val cmt: ClassTag[T] =
       implicitly[ClassTag[AnyRef]].asInstanceOf[ClassTag[T]]
-    new AMQPInputDStream(jssc.ssc, host, port, address, fn, storageLevel)
+
+    val walEnabled = WriteAheadLogUtils.enableReceiverLog(jssc.ssc.conf)
+
+    new AMQPInputDStream(jssc.ssc, host, port, address, fn, walEnabled, storageLevel)
   }
 
   /**

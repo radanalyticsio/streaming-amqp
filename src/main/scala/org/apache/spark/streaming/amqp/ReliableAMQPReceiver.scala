@@ -45,7 +45,7 @@ class ReliableAMQPReceiver[T](
       address: String,
       messageConverter: Message => Option[T],
       storageLevel: StorageLevel
-    ) extends Receiver[T](storageLevel) with Logging {
+    ) extends Receiver[T](storageLevel) with Logging with AMQPFlowControllerListener {
 
   private final val MaxStoreAttempts = 3
 
@@ -154,8 +154,8 @@ class ReliableAMQPReceiver[T](
 
     val receiver = connection.createReceiver(address)
 
-    // after created, the AMQP receiver lifecycle is tied to the rate controller
-    flowController = new AMQPSyncFlowController(blockGenerator, receiver)
+    // after created, the AMQP receiver lifecycle is tied to the flow controller
+    flowController = new AMQPFlowController(receiver, this)
     flowController.open()
   }
 
@@ -250,10 +250,16 @@ class ReliableAMQPReceiver[T](
     }
   }
 
-  implicit def functionToHandler[A](f: A => Unit): Handler[A] = new Handler[A] {
-    override def handle(event: A): Unit = {
-      f(event)
-    }
-  }
+  /**
+    * Called when an AMQP message is received on the link
+    *
+    * @param delivery Proton delivery instance
+    * @param message  Proton AMQP message
+    */
+  override def onAcquire(delivery: ProtonDelivery, message: Message): Unit = {
 
+    // only AMQP message will be stored into BlockGenerator internal buffer;
+    // delivery is passed as metadata to onAddData and saved here internally
+    blockGenerator.addDataWithCallback(message, delivery)
+  }
 }
