@@ -222,13 +222,9 @@ private final class AMQPPrefetchRateController(
 
   override def onAcquired(delivery: ProtonDelivery, message: Message): Unit = {
 
-    // permit acquired, add message
-    if (blockGenerator.isActive()) {
-
-      // only AMQP message will be stored into BlockGenerator internal buffer;
-      // delivery is passed as metadata to onAddData and saved here internally
-      blockGenerator.addDataWithCallback(message, delivery)
-    }
+    // only AMQP message will be stored into BlockGenerator internal buffer;
+    // delivery is passed as metadata to onAddData and saved here internally
+    blockGenerator.addDataWithCallback(message, delivery)
 
     super.onAcquired(delivery, message)
   }
@@ -298,13 +294,9 @@ private final class AMQPManualRateController(
 
   override def onAcquired(delivery: ProtonDelivery, message: Message): Unit = {
 
-    // permit acquired, add message
-    if (blockGenerator.isActive()) {
-
-      // only AMQP message will be stored into BlockGenerator internal buffer;
-      // delivery is passed as metadata to onAddData and saved here internally
-      blockGenerator.addDataWithCallback(message, delivery)
-    }
+    // only AMQP message will be stored into BlockGenerator internal buffer;
+    // delivery is passed as metadata to onAddData and saved here internally
+    blockGenerator.addDataWithCallback(message, delivery)
 
     count += 1
     // if the credits exhaustion is near, need to grant more credits

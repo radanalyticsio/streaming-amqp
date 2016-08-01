@@ -198,18 +198,14 @@ private final class AMQPAsyncFlowController(
     */
   private def addMessageDelivery(delivery: ProtonDelivery, message: Message): Unit = {
 
-    // permit acquired, add message
-    if (blockGenerator.isActive()) {
+    logInfo(s"Process delivery tag [${ new String(delivery.getTag()) }]")
 
-      logInfo(s"Process delivery tag [${ new String(delivery.getTag()) }]")
+    // only AMQP message will be stored into BlockGenerator internal buffer;
+    // delivery is passed as metadata to onAddData and saved here internally
+    blockGenerator.addDataWithCallback(message, delivery)
 
-      // only AMQP message will be stored into BlockGenerator internal buffer;
-      // delivery is passed as metadata to onAddData and saved here internally
-      blockGenerator.addDataWithCallback(message, delivery)
-
-      count += 1
-      last = TimeUnit.NANOSECONDS.toMicros(System.nanoTime)
-    }
+    count += 1
+    last = TimeUnit.NANOSECONDS.toMicros(System.nanoTime)
   }
   /**
     * Handler for the Vert.x timer scheduled for handling the messages queue
@@ -275,24 +271,20 @@ private final class AMQPSyncFlowController(
 
   override def acquire(delivery: ProtonDelivery, message: Message): Unit = {
 
-    // permit acquired, add message
-    if (blockGenerator.isActive()) {
+    logInfo(s"Process delivery tag [${ new String(delivery.getTag()) }]")
 
-      logInfo(s"Process delivery tag [${ new String(delivery.getTag()) }]")
+    // only AMQP message will be stored into BlockGenerator internal buffer;
+    // delivery is passed as metadata to onAddData and saved here internally
+    blockGenerator.addDataWithCallback(message, delivery)
 
-      // only AMQP message will be stored into BlockGenerator internal buffer;
-      // delivery is passed as metadata to onAddData and saved here internally
-      blockGenerator.addDataWithCallback(message, delivery)
+    count += 1
+    // if the credits exhaustion is near, need to grant more credits
+    if (count >= credits - CreditsThreshold) {
 
-      count += 1
-      // if the credits exhaustion is near, need to grant more credits
-      if (count >= credits - CreditsThreshold) {
-
-        val creditsToIssue = count
-        logInfo(s"count ${count} >= ${credits - CreditsThreshold} ... issuing ${creditsToIssue} credits")
-        receiver.flow(creditsToIssue)
-        count = 0
-      }
+      val creditsToIssue = count
+      logInfo(s"count ${count} >= ${credits - CreditsThreshold} ... issuing ${creditsToIssue} credits")
+      receiver.flow(creditsToIssue)
+      count = 0
     }
 
     super.acquire(delivery, message)
@@ -437,18 +429,14 @@ private final class AMQPHrAsyncFlowController(
     */
   private def addMessageDelivery(delivery: ProtonDelivery, message: Message): Unit = {
 
-    // permit acquired, add message
-    if (blockGenerator.isActive()) {
+    logInfo(s"Process delivery tag [${ new String(delivery.getTag()) }]")
 
-      logInfo(s"Process delivery tag [${ new String(delivery.getTag()) }]")
+    // only AMQP message will be stored into BlockGenerator internal buffer;
+    // delivery is passed as metadata to onAddData and saved here internally
+    blockGenerator.addDataWithCallback(message, delivery)
 
-      // only AMQP message will be stored into BlockGenerator internal buffer;
-      // delivery is passed as metadata to onAddData and saved here internally
-      blockGenerator.addDataWithCallback(message, delivery)
-
-      count += 1
-      last = TimeUnit.NANOSECONDS.toMicros(System.nanoTime)
-    }
+    count += 1
+    last = TimeUnit.NANOSECONDS.toMicros(System.nanoTime)
   }
 
   /**
