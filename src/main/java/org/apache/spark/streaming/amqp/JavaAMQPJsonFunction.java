@@ -23,16 +23,14 @@ import scala.Option;
 
 /**
  * Provides implementation for a function which has an AMQP messages as input
- * and provide a different type T instance as output
- * @param <T>
+ * and provide a JSON representation as output
  */
-public class JavaAMQPBodyFunction<T> implements Function<Message, Option<T>> {
+public class JavaAMQPJsonFunction implements Function<Message, Option<String>> {
 
     @Override
-    public Option<T> call(Message message) throws Exception {
+    public Option<String> call(Message message) throws Exception {
 
-        AMQPBodyFunction<T> function = new AMQPBodyFunction<>();
+        AMQPJsonFunction function = new AMQPJsonFunction();
         return function.apply(message);
-
     }
 }
