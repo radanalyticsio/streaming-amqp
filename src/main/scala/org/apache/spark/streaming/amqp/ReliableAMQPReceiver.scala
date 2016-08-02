@@ -45,18 +45,10 @@ class ReliableAMQPReceiver[T](
       address: String,
       messageConverter: Message => Option[T],
       storageLevel: StorageLevel
-    ) extends Receiver[T](storageLevel) with Logging with AMQPFlowControllerListener {
+    ) extends AMQPReceiver[T](host, port, address, messageConverter, storageLevel)
+      with Logging with AMQPFlowControllerListener {
 
   private final val MaxStoreAttempts = 3
-
-  private var flowController: AMQPFlowController = _
-
-  private var context: Context = _
-  private var vertx: Vertx = _
-  
-  private var client: ProtonClient = _
-  
-  private var connection: ProtonConnection = _
 
   private var blockGenerator: BlockGenerator = _
 
@@ -64,9 +56,7 @@ class ReliableAMQPReceiver[T](
 
   private var blockDeliveryMap: ConcurrentHashMap[StreamBlockId, Array[ProtonDelivery]] = _
 
-  def onStart() {
-
-    logInfo("onStart")
+  override def onStart() {
 
     deliveryBuffer = new mutable.ArrayBuffer[ProtonDelivery]()
 
@@ -75,88 +65,16 @@ class ReliableAMQPReceiver[T](
     blockGenerator = supervisor.createBlockGenerator(new GeneratedBlockHandler())
     blockGenerator.start()
 
-    vertx = Vertx.vertx()
-    
-    val options: ProtonClientOptions = new ProtonClientOptions()
-
-    client = ProtonClient.create(vertx)
-    
-    client.connect(options, host, port, new Handler[AsyncResult[ProtonConnection]] {
-      override def handle(ar: AsyncResult[ProtonConnection]): Unit = {
-        
-        if (ar.succeeded()) {
-
-          // get the Vert.x context created internally by the Proton library
-          context = vertx.getOrCreateContext()
-
-          connection = ar.result()
-          processConnection(connection)
-          
-        } else {
-
-          restart("Connection to AMQP address not established", ar.cause())
-        }
-        
-      }
-    })
-
+    super.onStart()
   }
   
-  def onStop() {
-
-    logInfo("onStop")
+  override def onStop() {
 
     if (blockGenerator != null && !blockGenerator.isStopped()) {
       blockGenerator.stop()
     }
 
-    if (flowController != null) {
-      flowController.close()
-    }
-
-    if (connection != null) {
-      connection.close()
-    }
-
-    if (vertx != null) {
-      vertx.close()
-    }
-  }
-
-  /**
-    * Process the connection established with the AMQP source
-    *
-    * @param connection     AMQP connection instance
-    */
-  private def processConnection(connection: ProtonConnection): Unit = {
-
-    connection
-      .closeHandler(new Handler[AsyncResult[ProtonConnection]] {
-        override def handle(ar: AsyncResult[ProtonConnection]): Unit = {
-
-          // handling connection closed at AMQP level ("close" performative)
-          if (ar.succeeded()) {
-            restart(s"Connection closed by peer ${ar.result().getRemoteContainer}")
-          } else {
-            restart("Connection closed by peer", ar.cause())
-          }
-
-        }
-      })
-      .disconnectHandler(new Handler[ProtonConnection] {
-        override def handle(connection: ProtonConnection): Unit = {
-
-          // handling connection closed at TCP level (disconnection)
-          restart(s"Disconnection by peer ${connection.getRemoteContainer}")
-        }
-      })
-      .open()
-
-    val receiver = connection.createReceiver(address)
-
-    // after created, the AMQP receiver lifecycle is tied to the flow controller
-    flowController = new AMQPFlowController(receiver, this)
-    flowController.open()
+    super.onStop()
   }
 
   /**

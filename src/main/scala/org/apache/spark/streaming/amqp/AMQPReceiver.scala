@@ -42,14 +42,14 @@ class AMQPReceiver[T](
        storageLevel: StorageLevel
      ) extends Receiver[T](storageLevel) with Logging with AMQPFlowControllerListener {
 
-  private var flowController: AMQPFlowController = _
+  protected var flowController: AMQPFlowController = _
 
-  private var context: Context = _
-  private var vertx: Vertx = _
+  protected var context: Context = _
+  protected var vertx: Vertx = _
 
-  private var client: ProtonClient = _
+  protected var client: ProtonClient = _
 
-  private var connection: ProtonConnection = _
+  protected var connection: ProtonConnection = _
 
   override def onStart(): Unit = {
 
