@@ -40,7 +40,7 @@ object AMQPTemperature {
   private val appName: String = getClass().getSimpleName()
 
   private val batchDuration: Duration = Seconds(1)
-  private val checkpointDir: String = "/tmp/amqp-spark-streaming"
+  private val checkpointDir: String = "/tmp/spark-streaming-amqp"
 
   private val host: String = "localhost"
   private val port: Int = 5672

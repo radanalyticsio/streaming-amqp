@@ -1,4 +1,4 @@
-name := "dstream-amqp"
+name := "spark-streaming-amqp"
 
 organization := "org.spark-project"
 
