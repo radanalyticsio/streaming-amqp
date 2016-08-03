@@ -19,6 +19,8 @@ package org.apache.spark.examples.streaming.amqp
 
 import java.lang.Long
 
+import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import io.vertx.core.{AsyncResult, Handler, Vertx}
 import io.vertx.proton._
 import org.apache.log4j.{Level, Logger}
@@ -26,7 +28,7 @@ import org.apache.qpid.proton.amqp.messaging.{AmqpValue, Section}
 import org.apache.qpid.proton.message.Message
 import org.apache.spark.SparkConf
 import org.apache.spark.storage.StorageLevel
-import org.apache.spark.streaming.amqp.AMQPUtils
+import org.apache.spark.streaming.amqp.{AMQPJsonFunction, AMQPUtils}
 import org.apache.spark.streaming.{Duration, Seconds, StreamingContext}
 
 import scala.util.Random
@@ -46,11 +48,16 @@ object AMQPTemperature {
   private val port: Int = 5672
   private val address: String = "temperature"
 
+  private val jsonMessageConverter: AMQPJsonFunction = new AMQPJsonFunction()
+
   def main(args: Array[String]): Unit = {
 
     // Logger.getLogger("org").setLevel(Level.WARN)
 
+    // get temperature value directly from AMQP body with custom converter ...
     val ssc = StreamingContext.getOrCreate(checkpointDir, createStreamingContext)
+    // ... or using the JSON representation
+    // val ssc = StreamingContext.getOrCreate(checkpointDir, createStreamingContextJson)
 
     ssc.start()
     ssc.awaitTermination()
@@ -80,9 +87,35 @@ object AMQPTemperature {
     val receiveStream = AMQPUtils.createStream(ssc, host, port, address, messageConverter _, StorageLevel.MEMORY_ONLY)
 
     // get maximum temperature in a window
-
     val max = receiveStream.reduceByWindow((a,b) => if (a > b) a else b, Seconds(5), Seconds(5))
-    //val max = receiveStream.reduce((a,b) => if (a > b) a else b)
+
+    max.print()
+
+    ssc
+  }
+
+  def createStreamingContextJson(): StreamingContext = {
+
+    val conf = new SparkConf().setMaster(master).setAppName(appName)
+    conf.set("spark.streaming.receiver.writeAheadLog.enable", "true")
+    //conf.set("spark.streaming.receiver.maxRate", "10000")
+    //conf.set("spark.streaming.backpressure.enabled", "true")
+    //conf.set("spark.streaming.blockInterval", "1ms")
+    val ssc = new StreamingContext(conf, batchDuration)
+    ssc.checkpoint(checkpointDir)
+
+    val mapper: ObjectMapper = new ObjectMapper()
+    mapper.registerModule(DefaultScalaModule)
+
+    val receiveStream = AMQPUtils.createStream(ssc, host, port, address, jsonMessageConverter, StorageLevel.MEMORY_ONLY)
+
+    val temperature = receiveStream.map(jsonMsg => {
+      val node: JsonNode = mapper.readTree(jsonMsg)
+      node.get("body").get("section").asInt()
+    })
+
+    // get maximum temperature in a window
+    val max = temperature.reduceByWindow((a,b) => if (a > b) a else b, Seconds(5), Seconds(5))
 
     max.print()
 
