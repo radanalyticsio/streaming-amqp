@@ -15,22 +15,23 @@ def getMax(a,b):
         return b
 
 def createStreamingContext():
-    conf = (SparkConf().setMaster("local[2]").setAppName("amqp_temperature"))
+    conf = SparkConf().setMaster("local[2]").setAppName("amqp_temperature")
     conf.set("spark.streaming.receiver.writeAheadLog.enable", "true")
 
     sc = SparkContext(conf=conf)
     ssc = StreamingContext(sc, 1)
     ssc.checkpoint("/tmp/spark-streaming-amqp")
 
-    receivestream = AMQPUtils.createStream(ssc, "localhost", 5672, "temperature")
+    receiveStream = AMQPUtils.createStream(ssc, "localhost", 5672, "temperature")
 
-    temperature = receivestream.map(getTemperature)
+    temperature = receiveStream.map(getTemperature)
     max = temperature.reduceByWindow(getMax, None, 5, 5)
 
     max.pprint()
 
-    ssc
+    return ssc
 
-ssc1 = StreamingContext.getOrCreate("/tmp/spark-streaming-amqp", createStreamingContext)
-ssc1.start()
-ssc1.awaitTermination()
+ssc = StreamingContext.getOrCreate("/tmp/spark-streaming-amqp", createStreamingContext)
+
+ssc.start()
+ssc.awaitTermination()
