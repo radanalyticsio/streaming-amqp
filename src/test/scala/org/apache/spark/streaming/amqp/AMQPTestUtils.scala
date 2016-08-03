@@ -23,6 +23,8 @@ import java.net.URI
 import io.vertx.core.{AsyncResult, Handler, Vertx}
 import io.vertx.proton._
 import org.apache.activemq.broker.{BrokerService, TransportConnector}
+import org.apache.qpid.proton.Proton
+import org.apache.qpid.proton.amqp.messaging.AmqpValue
 import org.apache.qpid.proton.message.Message
 
 /**
@@ -114,6 +116,42 @@ class AMQPTestUtils {
       }
     })
     
+  }
+
+  /**
+    * Send a message with body as array
+    *
+    * @param address    AMQP address node to which sending the message
+    * @param body       AMQP body for the message to send (i.e. array, list, map)
+    */
+  def sendComplexMessage(address: String, body: Any): Unit = {
+
+    val client: ProtonClient = ProtonClient.create(vertx)
+
+    client.connect(host, port, new Handler[AsyncResult[ProtonConnection]] {
+      override def handle(ar: AsyncResult[ProtonConnection]): Unit = {
+        if (ar.succeeded()) {
+
+          val connection: ProtonConnection = ar.result()
+          connection.open()
+
+          val sender: ProtonSender = connection.createSender(null)
+          sender.open()
+
+          val message: Message = Proton.message()
+          message.setAddress(address);
+          message.setBody(new AmqpValue(body));
+
+          sender.send(message, new Handler[ProtonDelivery] {
+            override def handle(delivery: ProtonDelivery): Unit = {
+
+              sender.close()
+              connection.close()
+            }
+          })
+        }
+      }
+    })
   }
 
   /**
