@@ -105,17 +105,17 @@ object AMQPUtils {
     * @param host    AMQP container hostname or IP address to connect
     * @param port    AMQP container port to connect
     * @param address AMQP node address on which receive messages
-    * @note Default message converter try to convert the AMQP message body into the custom type T                              *
+    * @note Default message converter try to convert the AMQP message body into the JSON string representation
     */
-  def createStream[T](
+  def createStream(
        jssc: JavaStreamingContext,
        host: String,
        port: Int,
        address: String
-     ): JavaReceiverInputDStream[T] = {
+     ): JavaReceiverInputDStream[String] = {
 
     // define the default message converted
-    val messageConverter: Function[Message, Option[T]] = new JavaAMQPBodyFunction[T]
+    val messageConverter: Function[Message, Option[String]] = new JavaAMQPJsonFunction()
 
     createStream(jssc, host, port, address, messageConverter, StorageLevel.MEMORY_ONLY)
   }
@@ -135,6 +135,6 @@ class AMQPUtilsPythonHelper {
        address: String
      ): JavaDStream[String] = {
 
-    AMQPUtils.createStream[String](jssc, host, port, address)
+    AMQPUtils.createStream(jssc, host, port, address)
   }
 }

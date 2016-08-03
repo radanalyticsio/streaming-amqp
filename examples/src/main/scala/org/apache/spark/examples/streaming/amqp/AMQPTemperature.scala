@@ -50,7 +50,7 @@ object AMQPTemperature {
 
     // Logger.getLogger("org").setLevel(Level.WARN)
 
-    val ssc = StreamingContext.getOrCreate(checkpointDir, createStreamingContect)
+    val ssc = StreamingContext.getOrCreate(checkpointDir, createStreamingContext)
 
     ssc.start()
     ssc.awaitTermination()
@@ -67,7 +67,7 @@ object AMQPTemperature {
     }
   }
 
-  def createStreamingContect(): StreamingContext = {
+  def createStreamingContext(): StreamingContext = {
 
     val conf = new SparkConf().setMaster(master).setAppName(appName)
     conf.set("spark.streaming.receiver.writeAheadLog.enable", "true")
