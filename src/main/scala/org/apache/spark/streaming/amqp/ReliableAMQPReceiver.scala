@@ -70,7 +70,7 @@ class ReliableAMQPReceiver[T](
   
   override def onStop() {
 
-    if (blockGenerator != null && !blockGenerator.isStopped()) {
+    if (Option(blockGenerator).isDefined && !blockGenerator.isStopped()) {
       blockGenerator.stop()
     }
 
@@ -86,7 +86,7 @@ class ReliableAMQPReceiver[T](
 
       logDebug(data.toString())
 
-      if (metadata != null) {
+      if (Option(metadata).isDefined) {
 
         // adding delivery into internal buffer
         val delivery = metadata.asInstanceOf[ProtonDelivery]
@@ -106,7 +106,7 @@ class ReliableAMQPReceiver[T](
 
       var attempt = 0
       var stored = false
-      var exception: Exception = null
+      var exception: Option[Exception] = None
 
       // try more times to store messages
       while (!stored && attempt < MaxStoreAttempts) {
@@ -126,7 +126,7 @@ class ReliableAMQPReceiver[T](
           case ex: Exception => {
 
             attempt += 1
-            exception = ex
+            exception = Option(ex)
           }
 
         }
@@ -154,8 +154,8 @@ class ReliableAMQPReceiver[T](
 
         } else {
 
-          logError(exception.getMessage(), exception)
-          stop("Error while storing block into Spark", exception)
+          logError(exception.get.getMessage(), exception.get)
+          stop("Error while storing block into Spark", exception.get)
         }
       }
 

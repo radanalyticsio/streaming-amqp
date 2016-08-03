@@ -57,6 +57,7 @@ class AMQPReceiver[T](
 
     vertx = Vertx.vertx()
 
+    // just used if some future options will be useful
     val options: ProtonClientOptions = new ProtonClientOptions()
 
     client = ProtonClient.create(vertx)
@@ -85,11 +86,15 @@ class AMQPReceiver[T](
 
     logInfo("onStop")
 
-    if (connection != null) {
+    if (Option(connection).isDefined) {
       connection.close()
     }
 
-    if (vertx != null) {
+    if (Option(flowController).isDefined) {
+      flowController.close()
+    }
+
+    if (Option(vertx).isDefined) {
       vertx.close()
     }
   }
@@ -126,6 +131,7 @@ class AMQPReceiver[T](
     val receiver = connection.createReceiver(address)
 
     // after created, the AMQP receiver lifecycle is tied to the flow controller
+    // current receiver instance is needed as a listener for flow controller events
     flowController = new AMQPFlowController(receiver, this)
     flowController.open()
   }

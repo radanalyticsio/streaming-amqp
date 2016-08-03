@@ -41,10 +41,10 @@ abstract class AMQPRateController(
       ) extends Logging {
 
   // check on the receiver and block generator instances
-  if (receiver == null)
+  if (Option(receiver).isEmpty)
     throw new IllegalArgumentException("The receiver instance cannot be null")
 
-  if (blockGenerator == null)
+  if (Option(blockGenerator).isEmpty)
     throw new IllegalArgumentException("The block generator instance cannot be null")
 
   protected final val AmqpRecvError = "org.apache:amqp-recv-error"
@@ -93,7 +93,7 @@ abstract class AMQPRateController(
     // extension point before closing receiver
     beforeClose()
 
-    if (receiver != null) {
+    if (Option(receiver).isDefined) {
       receiver.close()
     }
 

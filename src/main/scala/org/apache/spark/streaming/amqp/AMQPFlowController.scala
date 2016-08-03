@@ -54,17 +54,17 @@ class AMQPFlowController(
         listener: AMQPFlowControllerListener
      ) extends Logging {
 
-  protected final val CreditsDefault = 1000
-  protected final val CreditsThreshold = (CreditsDefault * 50) / 100
+  protected final val CREDITS_DEFAULT = 1000
+  protected final val CREDITS_THRESHOLD = (CREDITS_DEFAULT * 50) / 100
 
   protected var count = 0
   protected var credits = 0
 
   // check on the receiver and listener instances
-  if (receiver == null)
+  if (Option(receiver).isEmpty)
     throw new IllegalArgumentException("The receiver instance cannot be null")
 
-  if (listener == null)
+  if (Option(listener).isEmpty)
     throw new IllegalArgumentException("The listener instance cannot be null")
 
   /**
@@ -73,7 +73,7 @@ class AMQPFlowController(
   final def open(): Unit = {
 
     count = 0
-    credits = CreditsDefault
+    credits = CREDITS_DEFAULT
 
     receiver
       .setAutoAccept(false)
@@ -104,7 +104,7 @@ class AMQPFlowController(
     // extension point before closing receiver
     beforeClose()
 
-    if (receiver != null) {
+    if (Option(receiver).isDefined) {
       receiver.close()
     }
   }
@@ -131,10 +131,10 @@ class AMQPFlowController(
   protected def issueCredits(): Unit = {
 
     // if the credits exhaustion is near, need to grant more credits
-    if (count >= credits - CreditsThreshold) {
+    if (count >= credits - CREDITS_THRESHOLD) {
 
       val creditsToIssue = count
-      logDebug(s"Flow: count ${count} >= ${credits - CreditsThreshold} ... issuing ${creditsToIssue} credits")
+      logDebug(s"Flow: count ${count} >= ${credits - CREDITS_THRESHOLD} ... issuing ${creditsToIssue} credits")
       receiver.flow(creditsToIssue)
       count = 0
     }
@@ -285,7 +285,7 @@ private final class AMQPHrAsyncFlowController(
 
   // timer used for dequeing messages
   private val scheduledExecutorService: ScheduledExecutorService = Executors.newScheduledThreadPool(1)
-  private var scheduled: ScheduledFuture[_] = null
+  private var scheduled: Option[ScheduledFuture[_]] = None
 
   override def beforeOpen(): Unit = {
 
@@ -299,17 +299,17 @@ private final class AMQPHrAsyncFlowController(
 
     scheduledExecutorService.shutdown()
     scheduledExecutorService.awaitTermination(1, TimeUnit.SECONDS)
-    scheduled = null
+    scheduled = None
   }
 
   override def acquire(delivery: ProtonDelivery, message: Message): Unit = {
 
     val now: Long = TimeUnit.NANOSECONDS.toMicros(System.nanoTime)
 
-    // queue empyt, the running timer can be cancelled
-    if ((queue.isEmpty) && (scheduled != null)) {
-      scheduled.cancel(false)
-      scheduled = null
+    // queue empty, the running timer can be cancelled
+    if (queue.isEmpty && scheduled.isDefined) {
+      scheduled.get.cancel(false)
+      scheduled = None
       logInfo(s"Timer cancelled")
     }
 
@@ -341,10 +341,10 @@ private final class AMQPHrAsyncFlowController(
   private def scheduleTimer(): Unit = {
 
     // timer not already scheduled
-    if (scheduled == null) {
+    if (scheduled.isEmpty) {
 
       logDebug(s"Timer scheduled every ${stableIntervalMicros.toLong} us")
-      scheduled = scheduledExecutorService.scheduleWithFixedDelay(this, stableIntervalMicros.toLong, stableIntervalMicros.toLong, TimeUnit.MICROSECONDS)
+      scheduled = Option(scheduledExecutorService.scheduleWithFixedDelay(this, stableIntervalMicros.toLong, stableIntervalMicros.toLong, TimeUnit.MICROSECONDS))
     }
   }
 
