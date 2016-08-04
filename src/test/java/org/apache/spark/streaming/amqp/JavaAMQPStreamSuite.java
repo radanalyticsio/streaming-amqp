@@ -43,6 +43,7 @@ public class JavaAMQPStreamSuite {
     private String master = "local[2]";
     private String appName = this.getClass().getSimpleName();
     private String address = "my_address";
+    private String checkpointDir = "/tmp/spark-streaming-amqp-tests";
 
     private SparkConf conf = null;
     private JavaStreamingContext jssc = null;
@@ -52,7 +53,9 @@ public class JavaAMQPStreamSuite {
     public void setup() {
 
         this.conf = new SparkConf().setMaster(this.master).setAppName(this.appName);
+        conf.set("spark.streaming.receiver.writeAheadLog.enable", "true");
         this.jssc = new JavaStreamingContext(this.conf, this.batchDuration);
+        this.jssc.checkpoint(checkpointDir);
 
         this.amqpTestUtils = new AMQPTestUtils();
         this.amqpTestUtils.setup();

@@ -41,6 +41,7 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
   private val master: String = "local[2]"
   private val appName: String = this.getClass().getSimpleName()
   private val address: String = "my_address"
+  private val checkpointDir: String = "/tmp/spark-streaming-amqp-tests"
   
   private var conf: SparkConf = _
   private var ssc: StreamingContext = _
@@ -49,7 +50,9 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
   before {
     
     conf = new SparkConf().setMaster(master).setAppName(appName)
+    conf.set("spark.streaming.receiver.writeAheadLog.enable", "true")
     ssc = new StreamingContext(conf, batchDuration)
+    ssc.checkpoint(checkpointDir)
     
     amqpTestUtils = new AMQPTestUtils()
     amqpTestUtils.setup()
