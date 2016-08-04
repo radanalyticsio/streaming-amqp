@@ -25,7 +25,8 @@ import io.vertx.core.{AsyncResult, Handler, Vertx}
 import io.vertx.proton._
 import org.apache.activemq.broker.{BrokerService, TransportConnector}
 import org.apache.qpid.proton.Proton
-import org.apache.qpid.proton.amqp.messaging.AmqpValue
+import org.apache.qpid.proton.amqp.Binary
+import org.apache.qpid.proton.amqp.messaging.{AmqpValue, Data}
 import org.apache.qpid.proton.message.Message
 
 import scala.collection.JavaConverters._
@@ -122,7 +123,7 @@ class AMQPTestUtils {
   }
 
   /**
-    * Send a message with body as array
+    * Send a message with a complex body (array, list, map)
     *
     * @param address    AMQP address node to which sending the message
     * @param body       AMQP body for the message to send (i.e. array, list, map)
@@ -162,6 +163,43 @@ class AMQPTestUtils {
         }
       }
     })
+  }
+
+  /**
+    * Send a message with a binary body
+    *
+    * @param address    AMQP address node to which sending the message
+    * @param body       AMQP binary body for the message to send
+    */
+  def sendBinaryMessage(address: String, body: Array[Byte]): Unit = {
+
+    val client: ProtonClient = ProtonClient.create(vertx)
+
+    client.connect(host, port, new Handler[AsyncResult[ProtonConnection]] {
+      override def handle(ar: AsyncResult[ProtonConnection]): Unit = {
+        if (ar.succeeded()) {
+
+          val connection: ProtonConnection = ar.result()
+          connection.open()
+
+          val sender: ProtonSender = connection.createSender(null)
+          sender.open()
+
+          val message: Message = Proton.message()
+          message.setAddress(address);
+          message.setBody(new Data(new Binary(body)))
+
+          sender.send(message, new Handler[ProtonDelivery] {
+            override def handle(delivery: ProtonDelivery): Unit = {
+
+              sender.close()
+              connection.close()
+            }
+          })
+        }
+      }
+    })
+
   }
 
   /**

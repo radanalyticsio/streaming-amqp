@@ -17,8 +17,8 @@
 
 package org.apache.spark.streaming.amqp
 
-import java.util.Iterator
 import java.util.Map.Entry
+import java.util.{Base64, Iterator}
 
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
@@ -178,6 +178,44 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
     ssc.stop()
 
     amqpTestUtils.stopBroker()
+  }
+
+  test("AMQP receive binary body") {
+
+    amqpTestUtils.startBroker()
+
+    val converter = new AMQPJsonFunction()
+
+    val sendMessage = "Spark Streaming & AMQP"
+    val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, converter, StorageLevel.MEMORY_ONLY)
+
+    val binaryStream = receiveStream.map(jsonMsg => {
+
+      val mapper: ObjectMapper = new ObjectMapper()
+      mapper.registerModule(DefaultScalaModule)
+
+      val body: String = new String(Base64.getDecoder.decode(mapper.readTree(jsonMsg).get("body").get("section").asText()))
+
+      body
+    })
+
+    var receivedMessage: List[String] = List()
+    binaryStream.foreachRDD(rdd => {
+      if (!rdd.isEmpty()) {
+        receivedMessage = receivedMessage ::: List(rdd.first())
+      }
+    })
+
+    ssc.start()
+
+    eventually(timeout(10000 milliseconds), interval(1000 milliseconds)) {
+      amqpTestUtils.sendBinaryMessage(address, sendMessage.getBytes)
+      assert(sendMessage.equals(receivedMessage(0)))
+    }
+    ssc.stop()
+
+    amqpTestUtils.stopBroker()
+
   }
 
   test("AMQP receive server") {

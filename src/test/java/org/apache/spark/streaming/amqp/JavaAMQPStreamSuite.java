@@ -231,6 +231,53 @@ public class JavaAMQPStreamSuite {
     }
 
     @Test
+    public void testAMQPReceiveBinaryBody() {
+
+        this.amqpTestUtils.startBroker();
+
+        Function converter = new JavaAMQPJsonFunction();
+
+        String sendMessage = "Spark Streaming & AMQP";
+        JavaReceiverInputDStream<String>  receiveStream =
+                AMQPUtils.createStream(this.jssc,
+                        this.amqpTestUtils.host(),
+                        this.amqpTestUtils.port(),
+                        this.address, converter, StorageLevel.MEMORY_ONLY());
+
+        JavaDStream<String> binaryStream = receiveStream.map(jsonMsg -> {
+
+            ObjectMapper mapper = new ObjectMapper();
+
+            String body = new String(Base64.getDecoder().decode(mapper.readTree(jsonMsg).get("body").get("section").asText()));
+
+            return body;
+        });
+
+        List<String> receivedMessage = new ArrayList<>();
+        binaryStream.foreachRDD(rdd -> {
+            if (!rdd.isEmpty()) {
+                receivedMessage.add(rdd.first());
+            }
+        });
+
+        jssc.start();
+
+        this.amqpTestUtils.sendBinaryMessage(address, sendMessage.getBytes());
+
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        assert(receivedMessage.get(0).equals(sendMessage));
+
+        jssc.stop();
+
+        this.amqpTestUtils.stopBroker();
+    }
+
+    @Test
     public void testAMQPReceiveServer() {
 
         String sendMessage = "Spark Streaming & AMQP";

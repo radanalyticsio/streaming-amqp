@@ -143,7 +143,7 @@ class AMQPJsonFunction extends Function1[Message, Option[String]] with Serializa
           val value: Array[Byte] = data.getValue.getArray
 
           // put the section bytes as Base64 encoded string
-          jsonBody.put(SECTION, Base64.getEncoder.encode(value))
+          jsonBody.put(SECTION, new String(Base64.getEncoder.encode(value)))
 
         }
         case _ =>
