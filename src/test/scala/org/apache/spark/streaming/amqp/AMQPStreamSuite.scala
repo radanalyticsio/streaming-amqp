@@ -183,6 +183,49 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
     amqpTestUtils.stopBroker()
   }
 
+  test("AMQP receive array body") {
+
+    amqpTestUtils.startBroker()
+
+    val converter = new AMQPJsonFunction()
+
+    val array: Array[Any] = Array(1, 2)
+    val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, converter, StorageLevel.MEMORY_ONLY)
+
+    val listStream = receiveStream.map(jsonMsg => {
+
+      val mapper: ObjectMapper = new ObjectMapper()
+      mapper.registerModule(DefaultScalaModule)
+
+      var listFinal: ListBuffer[String] = ListBuffer[String]()
+
+      // get an itarator on "section" that is actually an array
+      val iterator: Iterator[JsonNode] = mapper.readTree(jsonMsg).get("body").get("section").asInstanceOf[ArrayNode].elements()
+      while(iterator.hasNext) {
+        listFinal += iterator.next().asText()
+      }
+
+      listFinal.mkString(",")
+    })
+
+    var receivedMessage: List[String] = List()
+    listStream.foreachRDD(rdd => {
+      if (!rdd.isEmpty()) {
+        receivedMessage = receivedMessage ::: List(rdd.first())
+      }
+    })
+
+    ssc.start()
+
+    eventually(timeout(10000 milliseconds), interval(1000 milliseconds)) {
+      amqpTestUtils.sendComplexMessage(address, array)
+      assert(array.mkString(",").equals(receivedMessage(0)))
+    }
+    ssc.stop()
+
+    amqpTestUtils.stopBroker()
+  }
+
   test("AMQP receive binary body") {
 
     amqpTestUtils.startBroker()

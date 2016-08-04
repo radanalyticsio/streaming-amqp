@@ -234,6 +234,61 @@ public class JavaAMQPStreamSuite {
     }
 
     @Test
+    public void testAMQPReceiveArrayBody() {
+
+        this.amqpTestUtils.startBroker();
+
+        Function converter = new JavaAMQPJsonFunction();
+
+        Object[] array = { 1, 2 };
+
+        JavaReceiverInputDStream<String>  receiveStream =
+                AMQPUtils.createStream(this.jssc,
+                        this.amqpTestUtils.host(),
+                        this.amqpTestUtils.port(),
+                        this.address, converter, StorageLevel.MEMORY_ONLY());
+
+        JavaDStream<String> listStream = receiveStream.map(jsonMsg -> {
+
+            ObjectMapper mapper = new ObjectMapper();
+
+            List<String> listFinal = new ArrayList<>();
+
+            // get an itarator on "section" that is actually an array
+            Iterator<JsonNode> iterator = mapper.readTree(jsonMsg).get("body").get("section").elements();
+            while(iterator.hasNext()) {
+                listFinal.add(iterator.next().asText());
+            }
+
+            return StringUtils.join(listFinal, ',');
+        });
+
+        List<String> receivedMessage = new ArrayList<>();
+        listStream.foreachRDD(rdd -> {
+            if (!rdd.isEmpty()) {
+                receivedMessage.add(rdd.first());
+            }
+        });
+
+        jssc.start();
+
+        this.amqpTestUtils.sendComplexMessage(address, array);
+
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        assert(receivedMessage.get(0).equals(StringUtils.join(array, ',')));
+
+        jssc.stop();
+
+        this.amqpTestUtils.stopBroker();
+
+    }
+
+    @Test
     public void testAMQPReceiveBinaryBody() {
 
         this.amqpTestUtils.startBroker();
