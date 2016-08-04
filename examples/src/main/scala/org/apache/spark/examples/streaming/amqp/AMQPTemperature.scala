@@ -104,12 +104,13 @@ object AMQPTemperature {
     val ssc = new StreamingContext(conf, batchDuration)
     ssc.checkpoint(checkpointDir)
 
-    val mapper: ObjectMapper = new ObjectMapper()
-    mapper.registerModule(DefaultScalaModule)
-
     val receiveStream = AMQPUtils.createStream(ssc, host, port, address, jsonMessageConverter, StorageLevel.MEMORY_ONLY)
 
     val temperature = receiveStream.map(jsonMsg => {
+
+      val mapper: ObjectMapper = new ObjectMapper()
+      mapper.registerModule(DefaultScalaModule)
+
       val node: JsonNode = mapper.readTree(jsonMsg)
       node.get("body").get("section").asInt()
     })

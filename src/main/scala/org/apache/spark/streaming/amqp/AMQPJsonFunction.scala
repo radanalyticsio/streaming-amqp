@@ -17,17 +17,17 @@
 
 package org.apache.spark.streaming.amqp
 
+import java.util.{Base64, List, Map}
+
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.{ArrayNode, ObjectNode}
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import org.apache.qpid.proton.amqp.Symbol
 import org.apache.qpid.proton.amqp.messaging._
 import org.apache.qpid.proton.message.Message
 
-import scala.collection.mutable
 import scala.collection.JavaConverters._
-import java.util.{Base64, Map}
-
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import scala.collection.mutable
 
 /**
   * Provides implementation for a function which has an AMQP messages as input
@@ -133,7 +133,6 @@ class AMQPJsonFunction extends Function1[Message, Option[String]] with Serializa
               val jsonMap: ObjectNode = mapper.valueToTree(map)
               jsonBody.putObject(SECTION).setAll(jsonMap)
             }
-
           }
         }
         // section is Data (binary)

@@ -27,6 +27,8 @@ import org.apache.qpid.proton.Proton
 import org.apache.qpid.proton.amqp.messaging.AmqpValue
 import org.apache.qpid.proton.message.Message
 
+import scala.collection.JavaConverters._
+
 /**
  * Scala test utilities for the AMQP input stream
  */
@@ -140,7 +142,12 @@ class AMQPTestUtils {
 
           val message: Message = Proton.message()
           message.setAddress(address);
-          message.setBody(new AmqpValue(body));
+
+          body match {
+            case list: List[_] => message.setBody(new AmqpValue(list.asJava))
+            case array: Array[_] => message.setBody(new AmqpValue(array))
+            case map: Map[_,_] => message.setBody(new AmqpValue(map.asJava))
+          }
 
           sender.send(message, new Handler[ProtonDelivery] {
             override def handle(delivery: ProtonDelivery): Unit = {

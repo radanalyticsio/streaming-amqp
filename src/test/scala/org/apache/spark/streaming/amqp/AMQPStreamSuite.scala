@@ -17,12 +17,19 @@
 
 package org.apache.spark.streaming.amqp
 
+import java.util.Iterator
+import java.util.Map.Entry
+
+import com.fasterxml.jackson.databind.node.ArrayNode
+import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.{Duration, Seconds, StreamingContext}
 import org.apache.spark.{SparkConf, SparkFunSuite}
 import org.scalatest.BeforeAndAfter
 import org.scalatest.concurrent.Eventually
 
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration._
 
 /**
@@ -86,6 +93,93 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
     amqpTestUtils.stopBroker()
   }
 
+  test("AMQP receive list body") {
+
+    amqpTestUtils.startBroker()
+
+    val converter = new AMQPJsonFunction()
+
+    val list: List[Any] = List("a string", 1, 2)
+    val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, converter, StorageLevel.MEMORY_ONLY)
+
+    val listStream = receiveStream.map(jsonMsg => {
+
+      val mapper: ObjectMapper = new ObjectMapper()
+      mapper.registerModule(DefaultScalaModule)
+
+      var listFinal: ListBuffer[String] = ListBuffer[String]()
+
+      // get an itarator on "section" that is actually an array
+      val iterator: Iterator[JsonNode] = mapper.readTree(jsonMsg).get("body").get("section").asInstanceOf[ArrayNode].elements()
+      while(iterator.hasNext) {
+        listFinal += iterator.next().asText()
+      }
+
+      listFinal.mkString(",")
+    })
+
+    var receivedMessage: List[String] = List()
+    listStream.foreachRDD(rdd => {
+      if (!rdd.isEmpty()) {
+        receivedMessage = receivedMessage ::: List(rdd.first())
+      }
+    })
+
+    ssc.start()
+
+    eventually(timeout(10000 milliseconds), interval(1000 milliseconds)) {
+      amqpTestUtils.sendComplexMessage(address, list)
+      assert(list.mkString(",").equals(receivedMessage(0)))
+    }
+    ssc.stop()
+
+    amqpTestUtils.stopBroker()
+  }
+
+  test("AMQP receive map body") {
+
+    amqpTestUtils.startBroker()
+
+    val converter = new AMQPJsonFunction()
+
+    val map:Map[_,_] = Map("field_a" -> "a string", "field_b" -> 1)
+    val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, converter, StorageLevel.MEMORY_ONLY)
+
+    val listStream = receiveStream.map(jsonMsg => {
+
+      val mapper: ObjectMapper = new ObjectMapper()
+      mapper.registerModule(DefaultScalaModule)
+
+      var listFinal: ListBuffer[String] = ListBuffer[String]()
+
+      // get an itarator on all fields of "section" that is actually a map
+      val iterator: Iterator[Entry[String, JsonNode]] = mapper.readTree(jsonMsg).get("body").get("section").fields()
+      while(iterator.hasNext) {
+        val entry: Entry[String, JsonNode] = iterator.next()
+        listFinal += entry.getKey + "=" + entry.getValue.asText()
+      }
+
+      listFinal.mkString(",")
+    })
+
+    var receivedMessage: List[String] = List()
+    listStream.foreachRDD(rdd => {
+      if (!rdd.isEmpty()) {
+        receivedMessage = receivedMessage ::: List(rdd.first())
+      }
+    })
+
+    ssc.start()
+
+    eventually(timeout(10000 milliseconds), interval(1000 milliseconds)) {
+      amqpTestUtils.sendComplexMessage(address, map)
+      assert(map.map(t => t._1 + "=" + t._2).mkString(",").equals(receivedMessage(0)))
+    }
+    ssc.stop()
+
+    amqpTestUtils.stopBroker()
+  }
+
   test("AMQP receive server") {
 
     val sendMessage = "Spark Streaming & AMQP"
@@ -115,42 +209,4 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
 
     amqpTestUtils.stopAMQPServer()
   }
-
-  test("AMQP receive server with throttling") {
-
-    val sendMessage = "Spark Streaming & AMQP"
-    val max = 10
-    val delay = 100l
-
-    val maxRate: Long = 2
-
-    val maxExpected = maxRate * (delay * max) /  1000
-    val expected = if (maxExpected < max) maxExpected else max
-
-    ssc.conf.set("spark.streaming.receiver.maxRate", maxRate.toString)
-
-    amqpTestUtils.startAMQPServer(sendMessage, max, delay)
-
-    val converter = new AMQPBodyFunction[String]
-
-    val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, converter, StorageLevel.MEMORY_ONLY)
-
-    var receivedMessage: List[String] = List()
-    receiveStream.foreachRDD(rdd => {
-      if (!rdd.isEmpty()) {
-        receivedMessage = receivedMessage ::: rdd.collect().toList
-      }
-    })
-
-    ssc.start()
-
-    eventually(timeout(10000 milliseconds), interval(1000 milliseconds)) {
-
-      assert(receivedMessage.length == expected)
-    }
-    ssc.stop()
-
-    amqpTestUtils.stopAMQPServer()
-  }
-
 }
