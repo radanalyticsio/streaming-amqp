@@ -19,6 +19,7 @@ package org.apache.spark.streaming.amqp
 
 import java.lang.Long
 import java.net.URI
+import java.util.{ArrayList, HashMap}
 
 import io.vertx.core.{AsyncResult, Handler, Vertx}
 import io.vertx.proton._
@@ -147,6 +148,8 @@ class AMQPTestUtils {
             case list: List[_] => message.setBody(new AmqpValue(list.asJava))
             case array: Array[_] => message.setBody(new AmqpValue(array))
             case map: Map[_,_] => message.setBody(new AmqpValue(map.asJava))
+            case arrayList: ArrayList[_] => message.setBody(new AmqpValue(arrayList))
+            case hashMap: HashMap[_,_] => message.setBody(new AmqpValue(hashMap))
           }
 
           sender.send(message, new Handler[ProtonDelivery] {

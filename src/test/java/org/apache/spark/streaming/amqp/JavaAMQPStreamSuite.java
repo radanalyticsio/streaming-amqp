@@ -17,18 +17,22 @@
 
 package org.apache.spark.streaming.amqp;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.storage.StorageLevel;
 import org.apache.spark.streaming.Duration;
+import org.apache.spark.streaming.api.java.JavaDStream;
 import org.apache.spark.streaming.api.java.JavaReceiverInputDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.Map.Entry;
 
 /**
  * Java test suite for the AMQP input stream
@@ -102,6 +106,128 @@ public class JavaAMQPStreamSuite {
         jssc.stop();
 
         this.amqpTestUtils.stopBroker();
+    }
+
+    @Test
+    public void testAMQPReceiveListBody() {
+
+        this.amqpTestUtils.startBroker();
+
+        Function converter = new JavaAMQPJsonFunction();
+
+        List<Object> list = new ArrayList<>();
+        list.add("a string");
+        list.add(1);
+        list.add(2);
+
+        JavaReceiverInputDStream<String>  receiveStream =
+                AMQPUtils.createStream(this.jssc,
+                        this.amqpTestUtils.host(),
+                        this.amqpTestUtils.port(),
+                        this.address, converter, StorageLevel.MEMORY_ONLY());
+
+        JavaDStream<String> listStream = receiveStream.map(jsonMsg -> {
+
+            ObjectMapper mapper = new ObjectMapper();
+
+            List<String> listFinal = new ArrayList<>();
+
+            // get an itarator on "section" that is actually an array
+            Iterator<JsonNode> iterator = mapper.readTree(jsonMsg).get("body").get("section").elements();
+            while(iterator.hasNext()) {
+                listFinal.add(iterator.next().asText());
+            }
+
+            return StringUtils.join(listFinal, ',');
+        });
+
+        List<String> receivedMessage = new ArrayList<>();
+        listStream.foreachRDD(rdd -> {
+            if (!rdd.isEmpty()) {
+                receivedMessage.add(rdd.first());
+            }
+        });
+
+        jssc.start();
+
+        this.amqpTestUtils.sendComplexMessage(address, list);
+
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        assert(receivedMessage.get(0).equals(StringUtils.join(list, ',')));
+
+        jssc.stop();
+
+        this.amqpTestUtils.stopBroker();
+
+    }
+
+    @Test
+    public void testAMQPReceiveMapBody() {
+
+        this.amqpTestUtils.startBroker();
+
+        Function converter = new JavaAMQPJsonFunction();
+
+        Map<Object, Object> map = new HashMap<>();
+        map.put("field_a", "a string");
+        map.put("field_b", 1);
+
+        JavaReceiverInputDStream<String>  receiveStream =
+                AMQPUtils.createStream(this.jssc,
+                        this.amqpTestUtils.host(),
+                        this.amqpTestUtils.port(),
+                        this.address, converter, StorageLevel.MEMORY_ONLY());
+
+        JavaDStream<String> mapStream = receiveStream.map(jsonMsg -> {
+
+            ObjectMapper mapper = new ObjectMapper();
+
+            List<String> listFinal = new ArrayList<>();
+
+            // get an itarator on all fields of "section" that is actually a map
+            Iterator<Entry<String, JsonNode>> iterator = mapper.readTree(jsonMsg).get("body").get("section").fields();
+            while(iterator.hasNext()) {
+                Entry<String, JsonNode> entry = iterator.next();
+                listFinal.add(entry.getKey() + "=" + entry.getValue().asText());
+            }
+
+            return StringUtils.join(listFinal, ',');
+        });
+
+        List<String> receivedMessage = new ArrayList<>();
+        mapStream.foreachRDD(rdd -> {
+            if (!rdd.isEmpty()) {
+                receivedMessage.add(rdd.first());
+            }
+        });
+
+        jssc.start();
+
+        this.amqpTestUtils.sendComplexMessage(address, map);
+
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        StringBuilder sbuilder = new StringBuilder();
+        for (Entry<Object, Object> entry: map.entrySet()) {
+            sbuilder.append(entry.getKey() + "=" + entry.getValue() + ",");
+        }
+        sbuilder.deleteCharAt(sbuilder.length() - 1);
+
+        assert(receivedMessage.get(0).equals(sbuilder.toString()));
+
+        jssc.stop();
+
+        this.amqpTestUtils.stopBroker();
+
     }
 
     @Test

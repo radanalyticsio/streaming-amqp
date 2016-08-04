@@ -145,7 +145,7 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
     val map:Map[_,_] = Map("field_a" -> "a string", "field_b" -> 1)
     val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, converter, StorageLevel.MEMORY_ONLY)
 
-    val listStream = receiveStream.map(jsonMsg => {
+    val mapStream = receiveStream.map(jsonMsg => {
 
       val mapper: ObjectMapper = new ObjectMapper()
       mapper.registerModule(DefaultScalaModule)
@@ -163,7 +163,7 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
     })
 
     var receivedMessage: List[String] = List()
-    listStream.foreachRDD(rdd => {
+    mapStream.foreachRDD(rdd => {
       if (!rdd.isEmpty()) {
         receivedMessage = receivedMessage ::: List(rdd.first())
       }
