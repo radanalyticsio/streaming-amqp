@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.apache.spark</groupId>
-    <artifactId>spark-streaming-amqp</artifactId>
+    <artifactId>spark-streaming-amqp_2.11</artifactId>
     <version>0.1.0</version>
     <packaging>jar</packaging>
 
@@ -104,7 +104,7 @@
                 </executions>
             </plugin>
 
-            <!-- used for executing Scala tests on "mvn test" -->
+            <!-- used for executing Scala tests suite on "mvn test" -->
             <plugin>
                 <groupId>org.scalatest</groupId>
                 <artifactId>scalatest-maven-plugin</artifactId>
@@ -112,7 +112,7 @@
                 <configuration>
                     <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
                     <junitxml>.</junitxml>
-                    <filereports>WDF TestSuite.txt</filereports>
+                    <filereports>SparkTestSuite.txt</filereports>
                 </configuration>
                 <executions>
                     <execution>
@@ -124,7 +124,27 @@
                 </executions>
             </plugin>
 
-            <!-- used for creating a fatjar with all dependencies on "mvn package" -->
+            <!-- used for executing Java tests suite on "mvn test" -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.19.1</version>
+                <configuration>
+                    <includes>
+                        <include>**/*Suite.java</include>
+                    </includes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>test</id>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- used for creating a fat jar with all dependencies on "mvn package" -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
