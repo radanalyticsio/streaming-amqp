@@ -84,4 +84,32 @@ receiveStream = AMQPUtils.createStream(ssc, host, port, address)
 
 ## Example
 
-TBD
+The Scala example provided with the current project is related to a simple IoT scenario where the AMQP receiver gets temperature values from a _temperature_ address. It could be the name of a queue on a broker or a direct address inside a router network where a device is sending data.
+
+The following message converter function is used, in order to estract the temperature value as an _Int_ from the AMQP message body.
+
+```scala
+def messageConverter(message: Message): Option[Int] = {
+
+  val body: Section = message. getBody()
+  if (body.isInstanceOf[AmqpValue]) {
+    val temp: Int = body.asInstanceOf[AmqpValue].getValue().asInstanceOf[String].toInt
+    Some(temp)
+  } else {
+    None
+  }
+}
+```
+
+The input stream returned by the AMQP receiver is processed with the _reduceByWindow_ method in order to get the maximum temperature value in a sliding window (5 seconds on top of a batch interval of 1 second).
+
+```scala
+val receiveStream = AMQPUtils.createStream(ssc, host, port, address, messageConverter _, StorageLevel.MEMORY_ONLY)
+
+// get maximum temperature in a window
+val max = receiveStream.reduceByWindow((a,b) => if (a > b) a else b, Seconds(5), Seconds(5))
+
+max.print()
+```
+
+The full source code is available in the examples folder with the same version in Python.

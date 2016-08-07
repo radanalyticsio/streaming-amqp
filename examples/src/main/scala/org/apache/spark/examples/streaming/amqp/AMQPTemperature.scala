@@ -65,7 +65,7 @@ object AMQPTemperature {
 
   def messageConverter(message: Message): Option[Int] = {
 
-    val body: Section = message.getBody()
+    val body: Section = message. getBody()
     if (body.isInstanceOf[AmqpValue]) {
       val temp: Int = body.asInstanceOf[AmqpValue].getValue().asInstanceOf[String].toInt
       Some(temp)
