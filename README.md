@@ -13,8 +13,8 @@ The implementation offers the following receivers :
 
 The stream doesn't provide the received AMQP messages directly as elements of the RDDs micro batches but from the driver it's possible to pass a converter function in order to convert each message in the desidered format; it will be the type of the elements inside the RDDs micro batches. Two built in message converter functions are provided (as sample) :
 
-* a converter which returns only the AMQP message body in a custom serializable type T
-* a converter which returns the JSON string representation of the entire AMQP message
+* _AMQPBodyFunction[T]_ : a converter which returns only the AMQP message body in a custom serializable type T
+* _AMQPJsonFunction_ : a converter which returns the JSON string representation of the entire AMQP message
 
 ## Project References
 
@@ -53,11 +53,34 @@ spark.streaming.receiver.writeAheadLog.enable
 
 ### Scala
 
-TBD
+```scala
+val converter = new AMQPBodyFunction[String]
+
+val receiveStream = AMQPUtils.createStream(ssc,
+                host, port, address,
+                converter, StorageLevel.MEMORY_ONLY)
+```
 
 ### Java
 
-TBD
+```java
+Function converter = new JavaAMQPBodyFunction<String>();
+
+String sendMessage = "Spark Streaming & AMQP";
+JavaReceiverInputDStream<String>  receiveStream =
+        AMQPUtils.createStream(this.jssc,
+                this.host,
+                this.port,
+                this.address, converter, StorageLevel.MEMORY_ONLY());
+```
+
+### Python
+
+The Python API leverages on the JSON converter and the RDDs micro batches always contain a String with the JSON representation of the received AMQP message.
+
+```python
+receiveStream = AMQPUtils.createStream(ssc, host, port, address)
+```
 
 ## Example
 
