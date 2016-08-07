@@ -8,7 +8,7 @@ This project provides an [AMQP](https://www.amqp.org/) (Advanced Message Queuing
 
 The implementation offers the following receivers :
 
-* a non reliable receiver which doesn't settle the messages received from the AMQP sender 
+* a non reliable receiver which doesn't settle the messages received from the AMQP sender
 * a reliable receiver which settles messages received from the AMQP sender only after storing them reliably in the Spark cluster (it uses the checkpoint and write ahead log features)
 
 The stream doesn't provide the received AMQP messages directly as elements of the RDDs micro batches but from the driver it's possible to pass a converter function in order to convert each message in the desidered format; it will be the type of the elements inside the RDDs micro batches. Two built in message converter functions are provided (as sample) :
@@ -18,7 +18,21 @@ The stream doesn't provide the received AMQP messages directly as elements of th
 
 ## Project References
 
-TBD
+### Maven
+
+```
+<dependency>
+    <groupId>org.apache.spark</groupId>
+    <artifactId>spark-streaming-amqp_2.11</artifactId>
+    <version>0.1.0</version>
+</dependency>
+```
+
+### SBT
+
+```
+libraryDependencies += "org.apache.spark" %% "spark-streaming-amqp_2.11" % "0.1.0"
+```
 
 ## Example
 
