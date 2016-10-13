@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/radanalyticsio/streaming-amqp.svg?branch=master)](https://travis-ci.org/radanalyticsio/streaming-amqp)
+
 # AMQP connector for Spark Streaming
 
 This project provides an [AMQP](https://www.amqp.org/) (Advanced Message Queuing Protocol) connector for [Apache Spark Streaming](http://spark.apache.org/streaming/) in order to ingest data as a stream from all possible AMQP based sources like :
