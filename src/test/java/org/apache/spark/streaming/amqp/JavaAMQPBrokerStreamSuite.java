@@ -154,7 +154,7 @@ public class JavaAMQPBrokerStreamSuite {
         this.amqpTestUtils.sendComplexMessage(address, list);
 
         try {
-            Thread.sleep(2000);
+            Thread.sleep(5000);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -207,7 +207,7 @@ public class JavaAMQPBrokerStreamSuite {
         this.amqpTestUtils.sendComplexMessage(address, map);
 
         try {
-            Thread.sleep(2000);
+            Thread.sleep(5000);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -263,7 +263,7 @@ public class JavaAMQPBrokerStreamSuite {
         this.amqpTestUtils.sendComplexMessage(address, array);
 
         try {
-            Thread.sleep(2000);
+            Thread.sleep(5000);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -306,7 +306,7 @@ public class JavaAMQPBrokerStreamSuite {
         this.amqpTestUtils.sendBinaryMessage(address, sendMessage.getBytes());
 
         try {
-            Thread.sleep(2000);
+            Thread.sleep(5000);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
