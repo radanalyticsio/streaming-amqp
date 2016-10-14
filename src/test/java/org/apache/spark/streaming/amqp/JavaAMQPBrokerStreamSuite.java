@@ -37,7 +37,7 @@ import java.util.Map.Entry;
 /**
  * Java test suite for the AMQP input stream
  */
-public class JavaAMQPStreamSuite {
+public class JavaAMQPBrokerStreamSuite {
 
     private Duration batchDuration = new Duration(1000);
     private String master = "local[2]";
@@ -59,10 +59,14 @@ public class JavaAMQPStreamSuite {
 
         this.amqpTestUtils = new AMQPTestUtils();
         this.amqpTestUtils.setup();
+
+        this.amqpTestUtils.startBroker();
     }
 
     @After
     public void teardown() {
+
+        this.amqpTestUtils.stopBroker();
 
         if (this.jssc != null) {
             this.jssc.stop();
@@ -75,8 +79,6 @@ public class JavaAMQPStreamSuite {
 
     @Test
     public void testAMQPReceiveSimpleBodyString() {
-
-        this.amqpTestUtils.startBroker();
 
         Function converter = new JavaAMQPBodyFunction<String>();
 
@@ -107,14 +109,10 @@ public class JavaAMQPStreamSuite {
         assert(receivedMessage.get(0).equals(sendMessage));
 
         jssc.stop();
-
-        this.amqpTestUtils.stopBroker();
     }
 
     @Test
     public void testAMQPReceiveListBody() {
-
-        this.amqpTestUtils.startBroker();
 
         Function converter = new JavaAMQPJsonFunction();
 
@@ -164,15 +162,10 @@ public class JavaAMQPStreamSuite {
         assert(receivedMessage.get(0).equals(StringUtils.join(list, ',')));
 
         jssc.stop();
-
-        this.amqpTestUtils.stopBroker();
-
     }
 
     @Test
     public void testAMQPReceiveMapBody() {
-
-        this.amqpTestUtils.startBroker();
 
         Function converter = new JavaAMQPJsonFunction();
 
@@ -228,15 +221,10 @@ public class JavaAMQPStreamSuite {
         assert(receivedMessage.get(0).equals(sbuilder.toString()));
 
         jssc.stop();
-
-        this.amqpTestUtils.stopBroker();
-
     }
 
     @Test
     public void testAMQPReceiveArrayBody() {
-
-        this.amqpTestUtils.startBroker();
 
         Function converter = new JavaAMQPJsonFunction();
 
@@ -283,15 +271,10 @@ public class JavaAMQPStreamSuite {
         assert(receivedMessage.get(0).equals(StringUtils.join(array, ',')));
 
         jssc.stop();
-
-        this.amqpTestUtils.stopBroker();
-
     }
 
     @Test
     public void testAMQPReceiveBinaryBody() {
-
-        this.amqpTestUtils.startBroker();
 
         Function converter = new JavaAMQPJsonFunction();
 
@@ -331,46 +314,6 @@ public class JavaAMQPStreamSuite {
         assert(receivedMessage.get(0).equals(sendMessage));
 
         jssc.stop();
-
-        this.amqpTestUtils.stopBroker();
     }
 
-    @Test
-    public void testAMQPReceiveServer() {
-
-        String sendMessage = "Spark Streaming & AMQP";
-        int max = 10;
-        long delay = 100;
-
-        this.amqpTestUtils.startAMQPServer(sendMessage, max, delay);
-
-        Function converter = new JavaAMQPBodyFunction<String>();
-
-        JavaReceiverInputDStream<String>  receiveStream =
-                AMQPUtils.createStream(this.jssc,
-                        this.amqpTestUtils.host(),
-                        this.amqpTestUtils.port(),
-                        this.address, converter, StorageLevel.MEMORY_ONLY());
-
-        List<String> receivedMessage = new ArrayList<>();
-        receiveStream.foreachRDD(rdd -> {
-            if (!rdd.isEmpty()) {
-                receivedMessage.addAll(rdd.collect());
-            }
-        });
-
-        jssc.start();
-
-        try {
-            Thread.sleep(10000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
-        assert(receivedMessage.size() == max);
-
-        jssc.stop();
-
-        amqpTestUtils.stopAMQPServer();
-    }
 }

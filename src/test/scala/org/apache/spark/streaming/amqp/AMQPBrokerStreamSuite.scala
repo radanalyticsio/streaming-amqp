@@ -35,7 +35,7 @@ import scala.concurrent.duration._
 /**
  * Scala test suite for the AMQP input stream
  */
-class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter {
+class AMQPBrokerStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter {
   
   private val batchDuration: Duration = Seconds(1)
   private val master: String = "local[2]"
@@ -56,9 +56,13 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
     
     amqpTestUtils = new AMQPTestUtils()
     amqpTestUtils.setup()
+
+    amqpTestUtils.startBroker()
   }
   
   after {
+
+    amqpTestUtils.stopBroker()
     
     if (ssc != null) {
       ssc.stop()
@@ -70,8 +74,6 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
   }
 
   test("AMQP receive simple body string") {
-
-    amqpTestUtils.startBroker()
 
     val converter = new AMQPBodyFunction[String]
 
@@ -92,13 +94,9 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
       assert(sendMessage.equals(receivedMessage(0)))
     }
     ssc.stop()
-
-    amqpTestUtils.stopBroker()
   }
 
   test("AMQP receive list body") {
-
-    amqpTestUtils.startBroker()
 
     val converter = new AMQPJsonFunction()
 
@@ -135,13 +133,9 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
       assert(list.mkString(",").equals(receivedMessage(0)))
     }
     ssc.stop()
-
-    amqpTestUtils.stopBroker()
   }
 
   test("AMQP receive map body") {
-
-    amqpTestUtils.startBroker()
 
     val converter = new AMQPJsonFunction()
 
@@ -179,13 +173,9 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
       assert(map.map(t => t._1 + "=" + t._2).mkString(",").equals(receivedMessage(0)))
     }
     ssc.stop()
-
-    amqpTestUtils.stopBroker()
   }
 
   test("AMQP receive array body") {
-
-    amqpTestUtils.startBroker()
 
     val converter = new AMQPJsonFunction()
 
@@ -222,13 +212,9 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
       assert(array.mkString(",").equals(receivedMessage(0)))
     }
     ssc.stop()
-
-    amqpTestUtils.stopBroker()
   }
 
   test("AMQP receive binary body") {
-
-    amqpTestUtils.startBroker()
 
     val converter = new AMQPJsonFunction()
 
@@ -259,38 +245,6 @@ class AMQPStreamSuite extends SparkFunSuite with Eventually with BeforeAndAfter 
       assert(sendMessage.equals(receivedMessage(0)))
     }
     ssc.stop()
-
-    amqpTestUtils.stopBroker()
-
   }
 
-  test("AMQP receive server") {
-
-    val sendMessage = "Spark Streaming & AMQP"
-    val max = 10
-    val delay = 100l
-
-    amqpTestUtils.startAMQPServer(sendMessage, max, delay)
-
-    val converter = new AMQPBodyFunction[String]
-
-    val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, converter, StorageLevel.MEMORY_ONLY)
-
-    var receivedMessage: List[String] = List()
-    receiveStream.foreachRDD(rdd => {
-      if (!rdd.isEmpty()) {
-        receivedMessage = receivedMessage ::: rdd.collect().toList
-      }
-    })
-
-    ssc.start()
-
-    eventually(timeout(10000 milliseconds), interval(1000 milliseconds)) {
-
-      assert(receivedMessage.length == max)
-    }
-    ssc.stop()
-
-    amqpTestUtils.stopAMQPServer()
-  }
 }
