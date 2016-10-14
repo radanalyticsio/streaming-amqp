@@ -101,7 +101,7 @@ public class JavaAMQPBrokerStreamSuite {
         this.amqpTestUtils.sendSimpleMessage(address, sendMessage);
 
         try {
-            Thread.sleep(2000);
+            Thread.sleep(5000);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
