@@ -41,6 +41,7 @@ The library can be added to a Spark job launched through `spark-shell` or `spark
 ```
 bin/spark-shell --packages org.apache.spark:spark-streaming-amqp_2.11:0.1.0
 ```
+> About installing package in the local repository, the `mvn clean install` command (for Maven) or the `sbt publish` (for SBT) need to be used.
 
 ## Receivers
 
