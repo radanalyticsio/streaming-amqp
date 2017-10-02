@@ -26,20 +26,20 @@ Using **Maven**
 <dependency>
     <groupId>org.apache.spark</groupId>
     <artifactId>spark-streaming-amqp_2.11</artifactId>
-    <version>0.1.0</version>
+    <version>0.2.0</version>
 </dependency>
 ```
 
 Using **SBT**
 
 ```
-libraryDependencies += "org.apache.spark" %% "spark-streaming-amqp_2.11" % "0.1.0"
+libraryDependencies += "org.apache.spark" %% "spark-streaming-amqp_2.11" % "0.2.0"
 ```
 
 The library can be added to a Spark job launched through `spark-shell` or `spark-submit` using the `--packages` or `--jars` command line options. In order to use the `--packages` option, the library needs to be installed into the local repository.
 
 ```
-bin/spark-shell --packages org.apache.spark:spark-streaming-amqp_2.11:0.1.0
+bin/spark-shell --packages org.apache.spark:spark-streaming-amqp_2.11:0.2.0
 ```
 > About installing package in the local repository, the `mvn clean install` command (for Maven) or the `sbt publish` (for SBT) need to be used.
 
