@@ -78,7 +78,9 @@ class AMQPBrokerStreamSuite extends SparkFunSuite with Eventually with BeforeAnd
     val converter = new AMQPBodyFunction[String]
 
     val sendMessage = "Spark Streaming & AMQP"
-    val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, converter, StorageLevel.MEMORY_ONLY)
+    val receiveStream =
+      AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port,
+        amqpTestUtils.username, amqpTestUtils.password, address, converter, StorageLevel.MEMORY_ONLY)
     
     var receivedMessage: List[String] = List()
     receiveStream.foreachRDD(rdd => {
@@ -101,7 +103,9 @@ class AMQPBrokerStreamSuite extends SparkFunSuite with Eventually with BeforeAnd
     val converter = new AMQPJsonFunction()
 
     val list: List[Any] = List("a string", 1, 2)
-    val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, converter, StorageLevel.MEMORY_ONLY)
+    val receiveStream =
+      AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port,
+        amqpTestUtils.username, amqpTestUtils.password, address, converter, StorageLevel.MEMORY_ONLY)
 
     val listStream = receiveStream.map(jsonMsg => {
 
@@ -140,7 +144,9 @@ class AMQPBrokerStreamSuite extends SparkFunSuite with Eventually with BeforeAnd
     val converter = new AMQPJsonFunction()
 
     val map:Map[_,_] = Map("field_a" -> "a string", "field_b" -> 1)
-    val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, converter, StorageLevel.MEMORY_ONLY)
+    val receiveStream =
+      AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port,
+        amqpTestUtils.username, amqpTestUtils.password, address, converter, StorageLevel.MEMORY_ONLY)
 
     val mapStream = receiveStream.map(jsonMsg => {
 
@@ -180,7 +186,9 @@ class AMQPBrokerStreamSuite extends SparkFunSuite with Eventually with BeforeAnd
     val converter = new AMQPJsonFunction()
 
     val array: Array[Any] = Array(1, 2)
-    val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, converter, StorageLevel.MEMORY_ONLY)
+    val receiveStream =
+      AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port,
+        amqpTestUtils.username, amqpTestUtils.password, address, converter, StorageLevel.MEMORY_ONLY)
 
     val listStream = receiveStream.map(jsonMsg => {
 
@@ -219,7 +227,9 @@ class AMQPBrokerStreamSuite extends SparkFunSuite with Eventually with BeforeAnd
     val converter = new AMQPJsonFunction()
 
     val sendMessage = "Spark Streaming & AMQP"
-    val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, converter, StorageLevel.MEMORY_ONLY)
+    val receiveStream =
+      AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port,
+        amqpTestUtils.username, amqpTestUtils.password, address, converter, StorageLevel.MEMORY_ONLY)
 
     val binaryStream = receiveStream.map(jsonMsg => {
 

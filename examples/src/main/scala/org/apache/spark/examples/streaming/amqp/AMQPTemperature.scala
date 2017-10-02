@@ -44,9 +44,11 @@ object AMQPTemperature {
   private val batchDuration: Duration = Seconds(1)
   private val checkpointDir: String = "/tmp/spark-streaming-amqp"
 
-  private val host: String = "localhost"
+  private val host: String = "172.30.168.178"
   private val port: Int = 5672
   private val address: String = "temperature"
+  private val username: Option[String] = Option("paolo")
+  private val password: Option[String] = Option("mypassword")
 
   private val jsonMessageConverter: AMQPJsonFunction = new AMQPJsonFunction()
 
@@ -84,7 +86,7 @@ object AMQPTemperature {
     val ssc = new StreamingContext(conf, batchDuration)
     ssc.checkpoint(checkpointDir)
 
-    val receiveStream = AMQPUtils.createStream(ssc, host, port, address, messageConverter _, StorageLevel.MEMORY_ONLY)
+    val receiveStream = AMQPUtils.createStream(ssc, host, port, username, password, address, messageConverter _, StorageLevel.MEMORY_ONLY)
 
     // get maximum temperature in a window
     val max = receiveStream.reduceByWindow((a,b) => if (a > b) a else b, Seconds(5), Seconds(5))
@@ -104,7 +106,7 @@ object AMQPTemperature {
     val ssc = new StreamingContext(conf, batchDuration)
     ssc.checkpoint(checkpointDir)
 
-    val receiveStream = AMQPUtils.createStream(ssc, host, port, address, jsonMessageConverter, StorageLevel.MEMORY_ONLY)
+    val receiveStream = AMQPUtils.createStream(ssc, host, port, username, password, address, jsonMessageConverter, StorageLevel.MEMORY_ONLY)
 
     val temperature = receiveStream.map(jsonMsg => {
 

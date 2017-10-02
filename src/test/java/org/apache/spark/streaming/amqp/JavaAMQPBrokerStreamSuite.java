@@ -87,6 +87,8 @@ public class JavaAMQPBrokerStreamSuite {
                 AMQPUtils.createStream(this.jssc,
                         this.amqpTestUtils.host(),
                         this.amqpTestUtils.port(),
+                        this.amqpTestUtils.username(),
+                        this.amqpTestUtils.password(),
                         this.address, converter, StorageLevel.MEMORY_ONLY());
 
         List<String> receivedMessage = new ArrayList<>();
@@ -125,6 +127,8 @@ public class JavaAMQPBrokerStreamSuite {
                 AMQPUtils.createStream(this.jssc,
                         this.amqpTestUtils.host(),
                         this.amqpTestUtils.port(),
+                        this.amqpTestUtils.username(),
+                        this.amqpTestUtils.password(),
                         this.address, converter, StorageLevel.MEMORY_ONLY());
 
         JavaDStream<String> listStream = receiveStream.map(jsonMsg -> {
@@ -177,6 +181,8 @@ public class JavaAMQPBrokerStreamSuite {
                 AMQPUtils.createStream(this.jssc,
                         this.amqpTestUtils.host(),
                         this.amqpTestUtils.port(),
+                        this.amqpTestUtils.username(),
+                        this.amqpTestUtils.password(),
                         this.address, converter, StorageLevel.MEMORY_ONLY());
 
         JavaDStream<String> mapStream = receiveStream.map(jsonMsg -> {
@@ -234,6 +240,8 @@ public class JavaAMQPBrokerStreamSuite {
                 AMQPUtils.createStream(this.jssc,
                         this.amqpTestUtils.host(),
                         this.amqpTestUtils.port(),
+                        this.amqpTestUtils.username(),
+                        this.amqpTestUtils.password(),
                         this.address, converter, StorageLevel.MEMORY_ONLY());
 
         JavaDStream<String> listStream = receiveStream.map(jsonMsg -> {
@@ -283,6 +291,8 @@ public class JavaAMQPBrokerStreamSuite {
                 AMQPUtils.createStream(this.jssc,
                         this.amqpTestUtils.host(),
                         this.amqpTestUtils.port(),
+                        this.amqpTestUtils.username(),
+                        this.amqpTestUtils.password(),
                         this.address, converter, StorageLevel.MEMORY_ONLY());
 
         JavaDStream<String> binaryStream = receiveStream.map(jsonMsg -> {

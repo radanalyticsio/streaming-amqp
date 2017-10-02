@@ -72,7 +72,9 @@ class AMQPServerStreamSuite extends SparkFunSuite with Eventually with BeforeAnd
 
     val converter = new AMQPBodyFunction[String]
 
-    val receiveStream = AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port, address, converter, StorageLevel.MEMORY_ONLY)
+    val receiveStream =
+      AMQPUtils.createStream(ssc, amqpTestUtils.host, amqpTestUtils.port,
+        amqpTestUtils.username, amqpTestUtils.password, address, converter, StorageLevel.MEMORY_ONLY)
 
     var receivedMessage: List[String] = List()
     receiveStream.foreachRDD(rdd => {

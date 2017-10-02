@@ -30,6 +30,8 @@ import scala.reflect.ClassTag
  * @param ssc						    Spark Streaming context
  * @param host					    AMQP container hostname or IP address to connect
  * @param port					    AMQP container port to connect
+ * @param username          Username for SASL PLAIN authentication
+ * @param password          Password for SASL PLAIN authentication
  * @param address				    AMQP node address on which receive messages
  * @param messageConverter  Callback for converting AMQP message to custom type at application level
  * @param storageLevel	    RDD storage level
@@ -39,6 +41,8 @@ class AMQPInputDStream[T: ClassTag](
       ssc: StreamingContext,
       host: String,
       port: Int,
+      username: Option[String],
+      password: Option[String],
       address: String,
       messageConverter: Message => Option[T],
       useReliableReceiver: Boolean,
@@ -48,9 +52,9 @@ class AMQPInputDStream[T: ClassTag](
   def getReceiver(): Receiver[T] = {
 
     if (!useReliableReceiver) {
-      new AMQPReceiver(host, port, address, messageConverter, storageLevel)
+      new AMQPReceiver(host, port, username, password, address, messageConverter, storageLevel)
     } else {
-      new ReliableAMQPReceiver(host, port, address, messageConverter, storageLevel)
+      new ReliableAMQPReceiver(host, port, username, password, address, messageConverter, storageLevel)
     }
   }
 }
