@@ -29,6 +29,8 @@ import org.apache.spark.streaming.receiver.Receiver
   *
   * @param host             AMQP container hostname or IP address to connect
   * @param port             AMQP container port to connect
+  * @param username         Username for SASL PLAIN authentication
+  * @param password         Password for SASL PLAIN authentication
   * @param address          AMQP node address on which receive messages
   * @param messageConverter Callback for converting AMQP message to custom type at application level
   * @param storageLevel	    RDD storage level
@@ -37,6 +39,8 @@ private [streaming]
 class AMQPReceiver[T](
        host: String,
        port: Int,
+       username: Option[String],
+       password: Option[String],
        address: String,
        messageConverter: Message => Option[T],
        storageLevel: StorageLevel
@@ -62,7 +66,15 @@ class AMQPReceiver[T](
 
     client = ProtonClient.create(vertx)
 
-    client.connect(options, host, port, new Handler[AsyncResult[ProtonConnection]] {
+    val protonUsername = username match {
+      case Some(u) => u
+      case None => null
+    }
+    val protonPassword = password match {
+      case Some(p) => p
+      case None => null
+    }
+    client.connect(options, host, port, protonUsername, protonPassword, new Handler[AsyncResult[ProtonConnection]] {
       override def handle(ar: AsyncResult[ProtonConnection]): Unit = {
 
         if (ar.succeeded()) {

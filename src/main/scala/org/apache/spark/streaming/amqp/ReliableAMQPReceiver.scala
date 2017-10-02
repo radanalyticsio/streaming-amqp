@@ -34,6 +34,8 @@ import scala.collection.mutable
  *
  * @param host					    AMQP container hostname or IP address to connect
  * @param port					    AMQP container port to connect
+ * @param username          Username for SASL PLAIN authentication
+ * @param password          Password for SASL PLAIN authentication
  * @param address				    AMQP node address on which receive messages
  * @param messageConverter  Callback for converting AMQP message to custom type at application level
  * @param storageLevel	    RDD storage level
@@ -42,10 +44,12 @@ private[streaming]
 class ReliableAMQPReceiver[T](
       host: String,
       port: Int,
+      username: Option[String],
+      password: Option[String],
       address: String,
       messageConverter: Message => Option[T],
       storageLevel: StorageLevel
-    ) extends AMQPReceiver[T](host, port, address, messageConverter, storageLevel)
+    ) extends AMQPReceiver[T](host, port, username, password, address, messageConverter, storageLevel)
       with Logging with AMQPFlowControllerListener {
 
   private final val MaxStoreAttempts = 3

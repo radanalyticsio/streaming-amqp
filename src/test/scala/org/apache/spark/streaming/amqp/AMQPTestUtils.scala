@@ -43,6 +43,8 @@ class AMQPTestUtils {
   val host: String = "localhost"
   val port: Int = 5672
   val address: String = "my_address"
+  val username: Option[String] = None
+  val password: Option[String] = None
 
   var vertx: Vertx = _
 

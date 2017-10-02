@@ -84,6 +84,8 @@ public class JavaAMQPServerStreamSuite {
                 AMQPUtils.createStream(this.jssc,
                         this.amqpTestUtils.host(),
                         this.amqpTestUtils.port(),
+                        this.amqpTestUtils.username(),
+                        this.amqpTestUtils.password(),
                         this.address, converter, StorageLevel.MEMORY_ONLY());
 
         List<String> receivedMessage = new ArrayList<>();
