@@ -80,6 +80,8 @@ JavaReceiverInputDStream<String>  receiveStream =
         AMQPUtils.createStream(this.jssc,
                 this.host,
                 this.port,
+                this.username,
+                this.password,
                 this.address, converter, StorageLevel.MEMORY_ONLY());
 ```
 
@@ -99,13 +101,16 @@ The following message converter function is used, in order to estract the temper
 
 ```scala
 def messageConverter(message: Message): Option[Int] = {
-
-  val body: Section = message. getBody()
-  if (body.isInstanceOf[AmqpValue]) {
-    val temp: Int = body.asInstanceOf[AmqpValue].getValue().asInstanceOf[String].toInt
-    Some(temp)
-  } else {
-    None
+  message.getBody match {
+      case body: Data => {
+        val temp: Int = new String(body.getValue.getArray).toInt
+        Some(temp)
+      }
+      case body: AmqpValue => {
+        val temp: Int = body.asInstanceOf[AmqpValue].getValue.asInstanceOf[String].toInt
+        Some(temp)
+      }
+      case _ => None
   }
 }
 ```
@@ -113,7 +118,7 @@ def messageConverter(message: Message): Option[Int] = {
 The input stream returned by the AMQP receiver is processed with the _reduceByWindow_ method in order to get the maximum temperature value in a sliding window (5 seconds on top of a batch interval of 1 second).
 
 ```scala
-val receiveStream = AMQPUtils.createStream(ssc, host, port, address, messageConverter _, StorageLevel.MEMORY_ONLY)
+val receiveStream = AMQPUtils.createStream(ssc, host, port, username, password, address, messageConverter _, StorageLevel.MEMORY_ONLY)
 
 // get maximum temperature in a window
 val max = receiveStream.reduceByWindow((a,b) => if (a > b) a else b, Seconds(5), Seconds(5))

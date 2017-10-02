@@ -24,7 +24,7 @@ import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import io.vertx.core.{AsyncResult, Handler, Vertx}
 import io.vertx.proton._
 import org.apache.log4j.{Level, Logger}
-import org.apache.qpid.proton.amqp.messaging.{AmqpValue, Section}
+import org.apache.qpid.proton.amqp.messaging.{AmqpValue, Data}
 import org.apache.qpid.proton.message.Message
 import org.apache.spark.SparkConf
 import org.apache.spark.storage.StorageLevel
@@ -67,12 +67,16 @@ object AMQPTemperature {
 
   def messageConverter(message: Message): Option[Int] = {
 
-    val body: Section = message. getBody()
-    if (body.isInstanceOf[AmqpValue]) {
-      val temp: Int = body.asInstanceOf[AmqpValue].getValue().asInstanceOf[String].toInt
-      Some(temp)
-    } else {
-      None
+    message.getBody match {
+      case body: Data => {
+        val temp: Int = new String(body.getValue.getArray).toInt
+        Some(temp)
+      }
+      case body: AmqpValue => {
+        val temp: Int = body.asInstanceOf[AmqpValue].getValue.asInstanceOf[String].toInt
+        Some(temp)
+      }
+      case _ => None
     }
   }
 
