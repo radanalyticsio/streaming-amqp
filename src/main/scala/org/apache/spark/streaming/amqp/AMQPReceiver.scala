@@ -83,6 +83,7 @@ class AMQPReceiver[T](
           context = vertx.getOrCreateContext()
 
           connection = ar.result()
+          logInfo(s"AMQP connection established with ${host}:${port}");
           processConnection(connection)
 
         } else {
