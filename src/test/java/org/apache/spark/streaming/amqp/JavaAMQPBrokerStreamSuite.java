@@ -20,6 +20,7 @@ package org.apache.spark.streaming.amqp;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.qpid.proton.message.Message;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.storage.StorageLevel;
@@ -30,6 +31,7 @@ import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import scala.Option;
 
 import java.util.*;
 import java.util.Map.Entry;
@@ -80,7 +82,7 @@ public class JavaAMQPBrokerStreamSuite {
     @Test
     public void testAMQPReceiveSimpleBodyString() {
 
-        Function converter = new JavaAMQPBodyFunction<String>();
+        Function<Message, Option<String>> converter = new JavaAMQPBodyFunction<>();
 
         String sendMessage = "Spark Streaming & AMQP";
         JavaReceiverInputDStream<String>  receiveStream =
@@ -116,7 +118,7 @@ public class JavaAMQPBrokerStreamSuite {
     @Test
     public void testAMQPReceiveListBody() {
 
-        Function converter = new JavaAMQPJsonFunction();
+        Function<Message, Option<String>> converter = new JavaAMQPJsonFunction();
 
         List<Object> list = new ArrayList<>();
         list.add("a string");
@@ -137,7 +139,7 @@ public class JavaAMQPBrokerStreamSuite {
 
             List<String> listFinal = new ArrayList<>();
 
-            // get an itarator on "section" that is actually an array
+            // get an iterator on "section" that is actually an array
             Iterator<JsonNode> iterator = mapper.readTree(jsonMsg).get("body").get("section").elements();
             while(iterator.hasNext()) {
                 listFinal.add(iterator.next().asText());
@@ -171,7 +173,7 @@ public class JavaAMQPBrokerStreamSuite {
     @Test
     public void testAMQPReceiveMapBody() {
 
-        Function converter = new JavaAMQPJsonFunction();
+        Function<Message, Option<String>> converter = new JavaAMQPJsonFunction();
 
         Map<Object, Object> map = new HashMap<>();
         map.put("field_a", "a string");
@@ -191,7 +193,7 @@ public class JavaAMQPBrokerStreamSuite {
 
             List<String> listFinal = new ArrayList<>();
 
-            // get an itarator on all fields of "section" that is actually a map
+            // get an iterator on all fields of "section" that is actually a map
             Iterator<Entry<String, JsonNode>> iterator = mapper.readTree(jsonMsg).get("body").get("section").fields();
             while(iterator.hasNext()) {
                 Entry<String, JsonNode> entry = iterator.next();
@@ -232,7 +234,7 @@ public class JavaAMQPBrokerStreamSuite {
     @Test
     public void testAMQPReceiveArrayBody() {
 
-        Function converter = new JavaAMQPJsonFunction();
+        Function<Message, Option<String>> converter = new JavaAMQPJsonFunction();
 
         Object[] array = { 1, 2 };
 
@@ -250,7 +252,7 @@ public class JavaAMQPBrokerStreamSuite {
 
             List<String> listFinal = new ArrayList<>();
 
-            // get an itarator on "section" that is actually an array
+            // get an iterator on "section" that is actually an array
             Iterator<JsonNode> iterator = mapper.readTree(jsonMsg).get("body").get("section").elements();
             while(iterator.hasNext()) {
                 listFinal.add(iterator.next().asText());
@@ -284,7 +286,7 @@ public class JavaAMQPBrokerStreamSuite {
     @Test
     public void testAMQPReceiveBinaryBody() {
 
-        Function converter = new JavaAMQPJsonFunction();
+        Function<Message, Option<String>> converter = new JavaAMQPJsonFunction();
 
         String sendMessage = "Spark Streaming & AMQP";
         JavaReceiverInputDStream<String>  receiveStream =

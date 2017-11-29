@@ -17,6 +17,7 @@
 
 package org.apache.spark.streaming.amqp;
 
+import org.apache.qpid.proton.message.Message;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.storage.StorageLevel;
@@ -26,6 +27,7 @@ import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import scala.Option;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -78,7 +80,7 @@ public class JavaAMQPServerStreamSuite {
 
         this.amqpTestUtils.startAMQPServer(sendMessage, max, delay);
 
-        Function converter = new JavaAMQPBodyFunction<String>();
+        Function<Message, Option<String>> converter = new JavaAMQPBodyFunction<>();
 
         JavaReceiverInputDStream<String>  receiveStream =
                 AMQPUtils.createStream(this.jssc,
