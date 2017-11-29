@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>io.radanalytics</groupId>
@@ -13,11 +11,19 @@
     <description>AQMP connector for Apache Spark Streaming</description>
     <url>http://spark.apache.org/</url>
 
+    <scm>
+        <url>https://github.com/radanalyticsio/streaming-amqp</url>
+        <connection>scm:git:https://github.com/radanalyticsio/streaming-amqp</connection>
+        <developerConnection>scm:git:git@github.com:radanalyticsio/streaming-amqp.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
+
     <properties>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <maven-shade-plugin.version>3.1.0</maven-shade-plugin.version>
         <maven-surefire-plugin.version>2.20.1</maven-surefire-plugin.version>
+        <maven-release-plugin.version>2.5.3</maven-release-plugin.version>
         <build-helper-maven-plugin.version>3.0.0</build-helper-maven-plugin.version>
         <vertx-proton.version>3.2.0</vertx-proton.version>
         <scala.version>2.11.8</scala.version>
@@ -194,6 +200,14 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-release-plugin</artifactId>
+                <version>${maven-release-plugin.version}</version>
+                <configuration>
+                    <tagNameFormat>@{project.version}</tagNameFormat>
+                </configuration>
             </plugin>
         </plugins>
     </build>
