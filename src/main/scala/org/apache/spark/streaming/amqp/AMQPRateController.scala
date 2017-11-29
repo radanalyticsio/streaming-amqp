@@ -26,8 +26,8 @@ import org.apache.qpid.proton.amqp.{Symbol => AmqpSymbol}
 import org.apache.qpid.proton.amqp.messaging.Rejected
 import org.apache.qpid.proton.amqp.transport.ErrorCondition
 import org.apache.qpid.proton.message.Message
-import org.apache.spark.internal.Logging
-import org.apache.spark.streaming.receiver.BlockGenerator
+import org.apache.spark.streaming.receiver.BlockGenerator 
+import org.slf4j.LoggerFactory
 
 /**
   * Provides message rate control with related throttling
@@ -38,7 +38,7 @@ import org.apache.spark.streaming.receiver.BlockGenerator
 abstract class AMQPRateController(
        blockGenerator: BlockGenerator,
        receiver: ProtonReceiver
-      ) extends Logging {
+      ) {
 
   // check on the receiver and block generator instances
   if (Option(receiver).isEmpty)
@@ -63,6 +63,8 @@ abstract class AMQPRateController(
   private val scheduledExecutorService: ScheduledExecutorService = Executors.newScheduledThreadPool(1)
   private var scheduledThrottlingHealthy: ScheduledFuture[_] = _
   private val throttlingHealthy: ThrottlingHealthy = new ThrottlingHealthy()
+
+  private val log = LoggerFactory.getLogger(getClass)
 
   /**
     * Open/start the rate controller activity
@@ -115,7 +117,7 @@ abstract class AMQPRateController(
       if (rateLimiter.tryAcquire()) {
 
         if (throttling) {
-          logInfo("Throttling ended ... ")
+          log.info("Throttling ended ... ")
           throttling = false
           onThrottlingEnded()
 
@@ -133,7 +135,7 @@ abstract class AMQPRateController(
           // throttling start now
           throttling = true
           onThrottlingStarted()
-          logWarning("Throttling started ... ")
+          log.warn("Throttling started ... ")
 
           // starting throttling healthy thread in order to end throttling
           // when no more messages are received (silence from sender)
@@ -142,7 +144,7 @@ abstract class AMQPRateController(
 
         if (throttling) {
 
-          logError("Throttling ... ")
+          log.error("Throttling ... ")
           // already in throttling
           onThrottling(delivery, message)
         }
@@ -185,7 +187,7 @@ abstract class AMQPRateController(
 
         if (throttling) {
 
-          logInfo("Healthy: Throttling ended ... ")
+          log.info("Healthy: Throttling ended ... ")
           throttling = false
           onThrottlingEnded()
         }
