@@ -33,7 +33,7 @@ Using **Maven**
 Using **SBT**
 
 ```
-libraryDependencies += "io.radanalytics" %% "spark-streaming-amqp_2.11" % "0.3.0"
+libraryDependencies += "io.radanalytics" %% "spark-streaming-amqp" % "0.3.0"
 ```
 
 The library can be added to a Spark job launched through `spark-shell` or `spark-submit` using the `--packages` or `--jars` command line options. In order to use the `--packages` option, the library needs to be installed into the local repository.
