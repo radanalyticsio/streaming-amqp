@@ -17,6 +17,7 @@
 
 package org.apache.spark.streaming.amqp
 
+import io.radanalytics.streaming.amqp.{AMQPBodyFunction, AMQPInputDStream, JavaAMQPJsonFunction}
 import org.apache.qpid.proton.message.Message
 import org.apache.spark.api.java.function.Function
 import org.apache.spark.storage.StorageLevel

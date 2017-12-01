@@ -19,13 +19,14 @@ package org.apache.spark.streaming.amqp
 
 import java.util.concurrent.ConcurrentHashMap
 
-import io.vertx.core.{AsyncResult, Context, Handler, Vertx}
+import io.radanalytics.streaming.amqp.{AMQPFlowControllerListener, AMQPReceiver}
+import io.vertx.core.Handler
 import io.vertx.proton._
 import org.apache.qpid.proton.amqp.messaging.Accepted
 import org.apache.qpid.proton.message.Message
-import org.apache.spark.internal.Logging
 import org.apache.spark.storage.{StorageLevel, StreamBlockId}
-import org.apache.spark.streaming.receiver.{BlockGenerator, BlockGeneratorListener, Receiver}
+import org.apache.spark.streaming.receiver.{BlockGenerator, BlockGeneratorListener}
+import org.slf4j.LoggerFactory
 
 import scala.collection.mutable
 
@@ -40,7 +41,6 @@ import scala.collection.mutable
  * @param messageConverter  Callback for converting AMQP message to custom type at application level
  * @param storageLevel	    RDD storage level
  */
-private[streaming]
 class ReliableAMQPReceiver[T](
       host: String,
       port: Int,
@@ -50,7 +50,7 @@ class ReliableAMQPReceiver[T](
       messageConverter: Message => Option[T],
       storageLevel: StorageLevel
     ) extends AMQPReceiver[T](host, port, username, password, address, messageConverter, storageLevel)
-      with Logging with AMQPFlowControllerListener {
+      with AMQPFlowControllerListener {
 
   private final val MaxStoreAttempts = 3
 
@@ -59,6 +59,8 @@ class ReliableAMQPReceiver[T](
   private var deliveryBuffer: mutable.ArrayBuffer[ProtonDelivery] = _
 
   private var blockDeliveryMap: ConcurrentHashMap[StreamBlockId, Array[ProtonDelivery]] = _
+
+  private val log = LoggerFactory.getLogger(getClass)
 
   override def onStart() {
 
@@ -88,7 +90,7 @@ class ReliableAMQPReceiver[T](
 
     def onAddData(data: Any, metadata: Any): Unit = {
 
-      logDebug(data.toString())
+      log.debug(data.toString())
 
       if (Option(metadata).isDefined) {
 
@@ -158,7 +160,7 @@ class ReliableAMQPReceiver[T](
 
         } else {
 
-          logError(exception.get.getMessage(), exception.get)
+          log.error(exception.get.getMessage(), exception.get)
           stop("Error while storing block into Spark", exception.get)
         }
       }
@@ -167,7 +169,7 @@ class ReliableAMQPReceiver[T](
     }
 
     def onError(message: String, throwable: Throwable): Unit = {
-      logError(message, throwable)
+      log.error(message, throwable)
       reportError(message, throwable)
     }
   }
