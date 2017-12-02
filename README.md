@@ -127,3 +127,6 @@ max.print()
 ```
 
 The full source code is available in the examples folder with the same version in Python.
+
+## Releasing
+For details about releasing new version please consult [RELEASING.md](./RELEASING.md)
