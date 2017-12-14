@@ -149,11 +149,11 @@ class AMQPUtilsPythonHelper {
        jssc: JavaStreamingContext,
        host: String,
        port: Int,
-       username: Option[String],
-       password: Option[String],
+       username: String,
+       password: String,
        address: String
      ): JavaDStream[String] = {
-
-    AMQPUtils.createStream(jssc, host, port, username, password, address)
+    
+    AMQPUtils.createStream(jssc, host, port, Option(username), Option(password), address)
   }
 }
