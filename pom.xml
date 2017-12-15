@@ -4,7 +4,7 @@
 
     <groupId>io.radanalytics</groupId>
     <artifactId>spark-streaming-amqp_2.11</artifactId>
-    <version>0.3.1</version>
+    <version>0.3.2-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>Spark Streaming AMQP</name>
@@ -15,7 +15,7 @@
         <url>https://github.com/radanalyticsio/streaming-amqp</url>
         <connection>scm:git:https://github.com/radanalyticsio/streaming-amqp</connection>
         <developerConnection>scm:git:git@github.com:radanalyticsio/streaming-amqp.git</developerConnection>
-        <tag>0.3.1</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <distributionManagement>
