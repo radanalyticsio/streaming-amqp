@@ -24,7 +24,7 @@ __all__ = ['AMQPUtils']
 class AMQPUtils(object):
 
     @staticmethod
-    def createStream(ssc, host, port, address):
+    def createStream(ssc, host, port, username, password, address):
 
         try:
             helper = ssc._jvm.org.apache.spark.streaming.amqp.AMQPUtilsPythonHelper()
@@ -33,7 +33,7 @@ class AMQPUtils(object):
                 AMQPUtils._printErrorMsg(ssc.sparkContext)
             raise
 
-        jstream = helper.createStream(ssc._jssc, host, port, address)
+        jstream = helper.createStream(ssc._jssc, host, port, username, password, address)
         return DStream(jstream, ssc, UTF8Deserializer())
 
     @staticmethod

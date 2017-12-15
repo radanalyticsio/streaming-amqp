@@ -18,11 +18,11 @@ def createStreamingContext():
     conf = SparkConf().setMaster("local[2]").setAppName("amqp_temperature")
     conf.set("spark.streaming.receiver.writeAheadLog.enable", "true")
 
-    sc = SparkContext(conf=conf)
+    sc = SparkContext.getOrCreate(conf=conf)
     ssc = StreamingContext(sc, 1)
     ssc.checkpoint("/tmp/spark-streaming-amqp")
 
-    receiveStream = AMQPUtils.createStream(ssc, "localhost", 5672, "temperature")
+    receiveStream = AMQPUtils.createStream(ssc, "localhost", 5672, "username", "password", "temperature")
 
     temperature = receiveStream.map(getTemperature)
     max = temperature.reduceByWindow(getMax, None, 5, 5)
