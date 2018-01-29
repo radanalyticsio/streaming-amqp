@@ -17,7 +17,6 @@
 
 package org.apache.spark.streaming.amqp
 
-import io.radanalytics.streaming.amqp.{AMQPBodyFunction, AMQPInputDStream, JavaAMQPJsonFunction}
 import org.apache.qpid.proton.message.Message
 import org.apache.spark.api.java.function.Function
 import org.apache.spark.storage.StorageLevel
@@ -36,8 +35,6 @@ object AMQPUtils {
     * @param ssc              Spark Streaming context
     * @param host             AMQP container hostname or IP address to connect
     * @param port             AMQP container port to connect
-    * @param username         Username for SASL PLAIN authentication
-    * @param password         Password for SASL PLAIN authentication
     * @param address          AMQP node address on which receive messages
     * @param messageConverter Callback for converting AMQP message to custom type at application level
     * @param storageLevel     RDD storage level
@@ -46,14 +43,12 @@ object AMQPUtils {
        ssc: StreamingContext,
        host: String,
        port: Int,
-       username: Option[String],
-       password: Option[String],
        address: String,
        messageConverter: Message => Option[T],
        storageLevel: StorageLevel
      ): ReceiverInputDStream[T] = {
     val walEnabled = WriteAheadLogUtils.enableReceiverLog(ssc.conf)
-    new AMQPInputDStream(ssc, host, port, username, password, address, messageConverter, walEnabled, storageLevel)
+    new AMQPInputDStream(ssc, host, port, address, messageConverter, walEnabled, storageLevel)
   }
 
   /**
@@ -62,8 +57,6 @@ object AMQPUtils {
     * @param ssc     Spark Streaming context
     * @param host    AMQP container hostname or IP address to connect
     * @param port    AMQP container port to connect
-    * @param username Username for SASL PLAIN authentication
-    * @param password Password for SASL PLAIN authentication
     * @param address AMQP node address on which receive messages
     * @note Default message converter try to convert the AMQP message body into the custom type T
     */
@@ -71,11 +64,9 @@ object AMQPUtils {
        ssc: StreamingContext,
        host: String,
        port: Int,
-       username: Option[String],
-       password: Option[String],
        address: String
      ): ReceiverInputDStream[T] = {
-    createStream(ssc, host, port, username, password, address, new AMQPBodyFunction[T], StorageLevel.MEMORY_ONLY)
+    createStream(ssc, host, port, address, new AMQPBodyFunction[T], StorageLevel.MEMORY_ONLY)
   }
 
   /**
@@ -84,8 +75,6 @@ object AMQPUtils {
     * @param jssc             Java Spark Streaming context
     * @param host             AMQP container hostname or IP address to connect
     * @param port             AMQP container port to connect
-    * @param username         Username for SASL PLAIN authentication
-    * @param password         Password for SASL PLAIN authentication
     * @param address          AMQP node address on which receive messages
     * @param messageConverter Callback for converting AMQP message to custom type at application level
     * @param storageLevel     RDD storage level
@@ -95,8 +84,6 @@ object AMQPUtils {
        jssc: JavaStreamingContext,
        host: String,
        port: Int,
-       username: Option[String],
-       password: Option[String],
        address: String,
        messageConverter: Function[Message, Option[T]],
        storageLevel: StorageLevel
@@ -108,7 +95,7 @@ object AMQPUtils {
 
     val walEnabled = WriteAheadLogUtils.enableReceiverLog(jssc.ssc.conf)
 
-    new AMQPInputDStream(jssc.ssc, host, port, username, password, address, fn, walEnabled, storageLevel)
+    new AMQPInputDStream(jssc.ssc, host, port, address, fn, walEnabled, storageLevel)
   }
 
   /**
@@ -117,8 +104,6 @@ object AMQPUtils {
     * @param jssc    Java Spark Streaming context
     * @param host    AMQP container hostname or IP address to connect
     * @param port    AMQP container port to connect
-    * @param username Username for SASL PLAIN authentication
-    * @param password Password for SASL PLAIN authentication
     * @param address AMQP node address on which receive messages
     * @note Default message converter try to convert the AMQP message body into the JSON string representation
     */
@@ -126,15 +111,13 @@ object AMQPUtils {
        jssc: JavaStreamingContext,
        host: String,
        port: Int,
-       username: Option[String],
-       password: Option[String],
        address: String
      ): JavaReceiverInputDStream[String] = {
 
     // define the default message converted
     val messageConverter: Function[Message, Option[String]] = new JavaAMQPJsonFunction()
 
-    createStream(jssc, host, port, username, password, address, messageConverter, StorageLevel.MEMORY_ONLY)
+    createStream(jssc, host, port, address, messageConverter, StorageLevel.MEMORY_ONLY)
   }
 }
 
@@ -149,11 +132,9 @@ class AMQPUtilsPythonHelper {
        jssc: JavaStreamingContext,
        host: String,
        port: Int,
-       username: String,
-       password: String,
        address: String
      ): JavaDStream[String] = {
-    
-    AMQPUtils.createStream(jssc, host, port, Option(username), Option(password), address)
+
+    AMQPUtils.createStream(jssc, host, port, address)
   }
 }
