@@ -90,7 +90,7 @@ JavaReceiverInputDStream<String>  receiveStream =
 The Python API leverages on the JSON converter and the RDDs micro batches always contain a String with the JSON representation of the received AMQP message.
 
 ```python
-receiveStream = AMQPUtils.createStream(ssc, host, port, address)
+receiveStream = AMQPUtils.createStream(ssc, host, port, username, password, address)
 ```
 
 ## Example
