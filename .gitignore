@@ -26,6 +26,10 @@ project/plugins/project/
 /target/
 /bin/
 
+# Maven specific
+pom.xml.releaseBackup
+release.properties
+
 # IntelliJ IDEA specific
 .idea/
 *.iml
