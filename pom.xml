@@ -33,11 +33,11 @@
         <maven-surefire-plugin.version>2.20.1</maven-surefire-plugin.version>
         <maven-release-plugin.version>2.5.3</maven-release-plugin.version>
         <build-helper-maven-plugin.version>3.0.0</build-helper-maven-plugin.version>
-        <vertx-proton.version>3.2.0</vertx-proton.version>
+        <vertx-proton.version>3.5.2</vertx-proton.version>
         <scala.version>2.11.8</scala.version>
         <scala.binary.version>2.11</scala.binary.version>
         <scalatest-maven-plugin.version>1.0</scalatest-maven-plugin.version>
-        <spark.version>2.0.0</spark.version>
+        <spark.version>2.4.6</spark.version>
         <junit.version>4.12</junit.version>
         <scalatest.version>2.2.5</scalatest.version>
         <junit-interface.version>0.11</junit-interface.version>
